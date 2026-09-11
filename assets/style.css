@@ -71,8 +71,8 @@ nav.top-nav a.active{background:rgba(255,255,255,0.1); border-color:rgba(255,255
 }
 .btn-logout:hover{background:rgba(255,255,255,0.08); color:#fff;}
 
-main.page{max-width:1180px; margin:0 auto; padding:22px 24px 60px;}
-main.page.narrow{max-width:720px;}
+main.page{max-width:1600px; margin:0 auto; padding:22px 32px 60px;}
+main.page.narrow{max-width:760px;}
 
 /* ===== Botones ===== */
 button, .btn{
