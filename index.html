@@ -1,0 +1,201 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Programador de Audiencias · Unidad Penal DIAN</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<header class="top">
+  <div class="top-row">
+    <div class="brandblock">
+      <div class="tab-mark"></div>
+      <div>
+        <h1>Programador de Audiencias</h1>
+        <div class="subtitle">Unidad Penal · DIAN</div>
+      </div>
+    </div>
+    <nav class="top-nav">
+      <a href="index.html" class="active">Audiencias</a>
+      <a href="audiencia.html">+ Nueva audiencia</a>
+      <a href="carga-masiva.html">Carga masiva</a>
+      <a href="catalogos.html">Catálogos</a>
+      <span class="user-chip" id="userChip" style="display:none;">
+        <span id="userEmail"></span>
+        <button class="btn-logout" id="btnLogout">Salir</button>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Audiencias programadas</h2>
+        <p id="scopeText">Cargando…</p>
+      </div>
+      <button class="btn-ghost" id="btnRefresh">↻ Actualizar</button>
+    </div>
+    <div class="card-body">
+      <div class="filters-row">
+        <div class="field grow">
+          <label>Buscar</label>
+          <input type="text" id="fBuscar" placeholder="Radicado, procesado, despacho…">
+        </div>
+        <div class="field">
+          <label>Desde</label>
+          <input type="date" id="fDesde">
+        </div>
+        <div class="field">
+          <label>Hasta</label>
+          <input type="date" id="fHasta">
+        </div>
+        <div class="field">
+          <label>Estado</label>
+          <select id="fEstado"><option value="">Todos</option></select>
+        </div>
+        <div class="field">
+          <label>Abogado titular</label>
+          <select id="fAbogado"><option value="">Todos</option></select>
+        </div>
+        <div class="field">
+          <button class="btn-ghost" id="btnLimpiar" type="button">Limpiar filtros</button>
+        </div>
+      </div>
+
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Fecha</th>
+              <th>Hora</th>
+              <th>Estado</th>
+              <th>Radicado</th>
+              <th>Despacho</th>
+              <th>Procesado / Persona jurídica</th>
+              <th>Tipo de audiencia</th>
+              <th>Abogado titular</th>
+              <th>Reemplaza</th>
+            </tr>
+          </thead>
+          <tbody id="bodyRows"></tbody>
+        </table>
+        <div class="no-results" id="noResults" style="display:none;">No hay audiencias que coincidan con los filtros.</div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="footer-note">Programador de Audiencias · Unidad Penal DIAN — datos en Supabase, acceso restringido al equipo</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="assets/supabase-client.js"></script>
+<script>
+  let todasLasFilas = [];
+
+  const ESTADOS_FIJOS = ["Audiencia hoy","Esta semana","Este mes","Próximo mes","Más adelante","Por definir",
+                          "Se realizo","No se realizo","Audiencia gestionada sin éxito","No centro de servicios"];
+
+  async function init() {
+    const session = await requireSession();
+    if (!session) return;
+    wireUserChip(session);
+
+    const abogados = await cargarCatalogo("abogados");
+    llenarSelectFiltro(document.getElementById("fAbogado"), abogados.map(a => a.nombre));
+    llenarSelectFiltro(document.getElementById("fEstado"), ESTADOS_FIJOS);
+
+    document.getElementById("btnRefresh").addEventListener("click", cargarDatos);
+    document.getElementById("btnLimpiar").addEventListener("click", limpiarFiltros);
+    ["fBuscar","fDesde","fHasta","fEstado","fAbogado"].forEach(id =>
+      document.getElementById(id).addEventListener("input", renderTabla));
+
+    await cargarDatos();
+  }
+
+  function llenarSelectFiltro(select, valores) {
+    valores.forEach(v => {
+      const opt = document.createElement("option");
+      opt.value = v; opt.textContent = v;
+      select.appendChild(opt);
+    });
+  }
+
+  async function cargarDatos() {
+    document.getElementById("scopeText").textContent = "Cargando…";
+    const { data, error } = await db.from("audiencias_estado").select("*").order("fecha", { ascending: true });
+    if (error) {
+      showToast("No se pudieron cargar las audiencias.", true);
+      console.error(error);
+      return;
+    }
+    todasLasFilas = data;
+    renderTabla();
+  }
+
+  function limpiarFiltros() {
+    document.getElementById("fBuscar").value = "";
+    document.getElementById("fDesde").value = "";
+    document.getElementById("fHasta").value = "";
+    document.getElementById("fEstado").value = "";
+    document.getElementById("fAbogado").value = "";
+    renderTabla();
+  }
+
+  function normalize(s) {
+    return String(s == null ? "" : s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase();
+  }
+
+  function renderTabla() {
+    const q = normalize(document.getElementById("fBuscar").value.trim());
+    const desde = document.getElementById("fDesde").value;
+    const hasta = document.getElementById("fHasta").value;
+    const estado = document.getElementById("fEstado").value;
+    const abogado = document.getElementById("fAbogado").value;
+
+    const filas = todasLasFilas.filter(r => {
+      if (desde && r.fecha < desde) return false;
+      if (hasta && r.fecha > hasta) return false;
+      if (estado && r.estado !== estado) return false;
+      if (abogado && r.abogado_titular !== abogado) return false;
+      if (q) {
+        const blob = normalize([r.radicado_proceso, r.nombre_procesado, r.nombre_persona_juridica, r.despacho].join(" "));
+        if (blob.indexOf(q) === -1) return false;
+      }
+      return true;
+    });
+
+    document.getElementById("scopeText").textContent =
+      `${filas.length} de ${todasLasFilas.length} audiencias`;
+
+    const body = document.getElementById("bodyRows");
+    const noResults = document.getElementById("noResults");
+    if (filas.length === 0) {
+      body.innerHTML = "";
+      noResults.style.display = "block";
+      return;
+    }
+    noResults.style.display = "none";
+
+    body.innerHTML = filas.map(r => `
+      <tr class="row-link" onclick="window.location.href='audiencia.html?id=${r.id}'">
+        <td class="mono-cell">${formatFecha(r.fecha)}</td>
+        <td class="mono-cell">${r.hora ? r.hora.slice(0,5) : "—"}</td>
+        <td><span class="badge ${badgeClassForEstado(r.estado)}">${escapeHtml(r.estado)}</span></td>
+        <td class="mono-cell">${escapeHtml(r.radicado_proceso)}</td>
+        <td>${escapeHtml(r.despacho || "—")}</td>
+        <td>${escapeHtml(r.nombre_procesado || r.nombre_persona_juridica || "—")}</td>
+        <td>${escapeHtml(r.tipo_audiencia || "—")}</td>
+        <td>${escapeHtml(r.abogado_titular || "—")}</td>
+        <td>${escapeHtml(r.abogado_reemplaza || "—")}</td>
+      </tr>
+    `).join("");
+  }
+
+  init();
+</script>
+</body>
+</html>

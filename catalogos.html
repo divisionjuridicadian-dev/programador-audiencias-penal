@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Catálogos · Programador · Unidad Penal DIAN</title>
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  .cat-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+  @media (max-width:900px){ .cat-grid{grid-template-columns:1fr;} }
+  .cat-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; max-height:340px; overflow-y:auto;}
+  .cat-list li{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 9px; border:1px solid var(--line); border-radius:6px; font-size:13px;}
+  .cat-add{display:flex; gap:8px; margin-top:12px;}
+  .cat-add input{flex:1;}
+  .link-danger{font-size:11px; color:var(--red); cursor:pointer; background:none; border:none; padding:2px 4px;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-row">
+    <div class="brandblock">
+      <div class="tab-mark"></div>
+      <div>
+        <h1>Programador de Audiencias</h1>
+        <div class="subtitle">Unidad Penal · DIAN</div>
+      </div>
+    </div>
+    <nav class="top-nav">
+      <a href="index.html">Audiencias</a>
+      <a href="audiencia.html">+ Nueva audiencia</a>
+      <a href="carga-masiva.html">Carga masiva</a>
+      <a href="catalogos.html" class="active">Catálogos</a>
+      <span class="user-chip" id="userChip" style="display:none;">
+        <span id="userEmail"></span>
+        <button class="btn-logout" id="btnLogout">Salir</button>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <div class="cat-grid">
+    <div class="card">
+      <div class="card-head"><div><h2>Abogados</h2><p>Titulares y reemplazos disponibles</p></div></div>
+      <div class="card-body">
+        <ul class="cat-list" id="listaAbogados"></ul>
+        <div class="cat-add">
+          <input type="text" id="nuevoAbogado" placeholder="Nombre completo">
+          <button class="btn-gold" onclick="agregar('abogados','nuevoAbogado','listaAbogados')">Agregar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div><h2>Tipos de audiencia</h2><p>Opciones del desplegable</p></div></div>
+      <div class="card-body">
+        <ul class="cat-list" id="listaTipos"></ul>
+        <div class="cat-add">
+          <input type="text" id="nuevoTipo" placeholder="Ej. JUICIO ORAL">
+          <button class="btn-gold" onclick="agregar('tipos_audiencia','nuevoTipo','listaTipos')">Agregar</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-head"><div><h2>Resultados</h2><p>Opciones del desplegable</p></div></div>
+      <div class="card-body">
+        <ul class="cat-list" id="listaResultados"></ul>
+        <div class="cat-add">
+          <input type="text" id="nuevoResultado" placeholder="Ej. Se realizo">
+          <button class="btn-gold" onclick="agregar('resultados_audiencia','nuevoResultado','listaResultados')">Agregar</button>
+        </div>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="assets/supabase-client.js"></script>
+<script>
+  async function init() {
+    const session = await requireSession();
+    if (!session) return;
+    wireUserChip(session);
+    await Promise.all([
+      cargarLista("abogados", "listaAbogados"),
+      cargarLista("tipos_audiencia", "listaTipos"),
+      cargarLista("resultados_audiencia", "listaResultados"),
+    ]);
+  }
+
+  async function cargarLista(tabla, elId) {
+    const items = await cargarCatalogo(tabla);
+    const ul = document.getElementById(elId);
+    ul.innerHTML = items.map(it => `
+      <li>
+        <span>${escapeHtml(it.nombre)}</span>
+        <button class="link-danger" onclick="desactivar('${tabla}','${it.id}','${elId}')">quitar</button>
+      </li>`).join("") || '<li class="muted">Sin elementos.</li>';
+  }
+
+  async function agregar(tabla, inputId, elId) {
+    const input = document.getElementById(inputId);
+    const nombre = input.value.trim();
+    if (!nombre) return;
+    const { error } = await db.from(tabla).insert({ nombre });
+    if (error) {
+      showToast(error.code === "23505" ? "Ya existe en la lista." : "No se pudo agregar.", true);
+      return;
+    }
+    input.value = "";
+    showToast("Agregado.");
+    cargarLista(tabla, elId);
+  }
+
+  async function desactivar(tabla, id, elId) {
+    if (!confirm("¿Quitar este elemento del catálogo? Las audiencias ya guardadas con este valor no se ven afectadas.")) return;
+    const { error } = await db.from(tabla).update({ activo: false }).eq("id", id);
+    if (error) { showToast("No se pudo quitar.", true); return; }
+    cargarLista(tabla, elId);
+  }
+
+  init();
+</script>
+</body>
+</html>

@@ -1,0 +1,348 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Carga masiva · Programador · Unidad Penal DIAN</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  .cell-input{width:100%; padding:5px 7px; font-size:12px; border:1px solid var(--line); border-radius:5px; font-family:var(--mono);}
+  .cell-input.invalid{border-color:var(--red); background:var(--red-soft);}
+  .row-error{background:var(--red-soft) !important;}
+  .row-ok{background:var(--green-soft) !important;}
+  .status-ok{color:var(--green); font-weight:700; font-size:11.5px;}
+  .status-error{color:var(--red); font-weight:700; font-size:11.5px;}
+  .steps{display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;}
+  .step{font-size:11.5px; font-weight:700; color:var(--ink-soft); padding:5px 10px; border-radius:20px; background:var(--paper-dim);}
+  .step.active{background:var(--navy-900); color:#fff;}
+</style>
+</head>
+<body>
+
+<header class="top">
+  <div class="top-row">
+    <div class="brandblock">
+      <div class="tab-mark"></div>
+      <div>
+        <h1>Programador de Audiencias</h1>
+        <div class="subtitle">Unidad Penal · DIAN</div>
+      </div>
+    </div>
+    <nav class="top-nav">
+      <a href="index.html">Audiencias</a>
+      <a href="audiencia.html">+ Nueva audiencia</a>
+      <a href="carga-masiva.html" class="active">Carga masiva</a>
+      <a href="catalogos.html">Catálogos</a>
+      <span class="user-chip" id="userChip" style="display:none;">
+        <span id="userEmail"></span>
+        <button class="btn-logout" id="btnLogout">Salir</button>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main class="page">
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Carga masiva de audiencias</h2>
+        <p>Pensada para una carga inicial completa desde el Excel histórico. Valida cada fila antes de guardar nada.</p>
+      </div>
+    </div>
+    <div class="card-body">
+      <div class="steps">
+        <span class="step active" id="stepUpload">1. Subir archivo</span>
+        <span class="step" id="stepReview">2. Revisar y corregir</span>
+        <span class="step" id="stepImport">3. Importar</span>
+      </div>
+
+      <div id="panelUpload" class="stack">
+        <p class="muted">Sube el archivo Excel con la hoja de audiencias (columnas como RADICADO_PROCESO, FECHA, HORA, DESPACHO, TIPO_AUDIENCIA, etc.). Se detecta la hoja automáticamente.</p>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+      </div>
+
+      <div id="panelReview" style="display:none;">
+        <div class="row between" style="margin-bottom:12px;">
+          <p class="pill-count" id="resumenValidacion"></p>
+          <div class="row">
+            <button class="btn-ghost" id="btnCancelarCarga" type="button">Cancelar</button>
+            <button class="btn-gold" id="btnImportar" type="button">Importar filas válidas</button>
+          </div>
+        </div>
+        <p class="muted" style="font-size:12px;">Los radicados y fechas en rojo no cumplen la regla (23 dígitos numéricos para el radicado, fecha válida). Corrígelos directamente en la tabla — el resto de la fila se importa tal cual. Las filas que queden en rojo se omiten de la importación. Los abogados, tipos de audiencia y resultados que no existan en los catálogos se crean automáticamente.</p>
+        <div class="table-scroll" style="margin-top:12px; max-height:60vh;">
+          <table>
+            <thead>
+              <tr>
+                <th>Estado</th>
+                <th>Radicado (23 dígitos)</th>
+                <th>Fecha</th>
+                <th>Hora</th>
+                <th>Despacho</th>
+                <th>Procesado</th>
+                <th>Tipo audiencia</th>
+                <th>Resultado</th>
+                <th>Abogado titular</th>
+              </tr>
+            </thead>
+            <tbody id="previewBody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div id="panelDone" style="display:none;" class="stack">
+        <p id="resultadoImportacion" class="muted"></p>
+        <a href="index.html" class="btn btn-primary" style="align-self:flex-start;">Ir al listado de audiencias</a>
+      </div>
+    </div>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="assets/supabase-client.js"></script>
+<script>
+  let filas = []; // objetos { radicado, fecha, hora, despacho, procesado, tipoAudiencia, resultado, abogadoTitular, abogadoReemplaza, ... }
+  let catalogoTipos = [], catalogoResultados = [], catalogoAbogados = [];
+
+  async function init() {
+    const session = await requireSession();
+    if (!session) return;
+    wireUserChip(session);
+
+    [catalogoTipos, catalogoResultados, catalogoAbogados] = await Promise.all([
+      cargarCatalogo("tipos_audiencia"),
+      cargarCatalogo("resultados_audiencia"),
+      cargarCatalogo("abogados"),
+    ]);
+
+    document.getElementById("fileInput").addEventListener("change", (e) => {
+      if (e.target.files[0]) procesarArchivo(e.target.files[0]);
+    });
+    document.getElementById("btnCancelarCarga").addEventListener("click", () => window.location.reload());
+    document.getElementById("btnImportar").addEventListener("click", importar);
+  }
+
+  function normalize(s) {
+    return String(s == null ? "" : s).normalize("NFD").replace(/[\u0300-\u036f]/g,"").toUpperCase().replace(/[\s_]+/g," ").trim();
+  }
+
+  const MAPA_COLUMNAS = {
+    "RADICADO PROCESO": "radicado",
+    "FECHA": "fecha",
+    "HORA": "hora",
+    "DESPACHO": "despacho",
+    "LINK AUDIENCIA": "link",
+    "NIT PERSONA JURIDICA": "nit",
+    "NOMBRE PERSONA JURIDICA": "nombrePersonaJuridica",
+    "ID PROCESADO": "idProcesado",
+    "NOMBRE PROCESADO": "procesado",
+    "TIPO AUDIENCIA": "tipoAudiencia",
+    "RESULTADO AUDIENCIA": "resultado",
+    "ABOGADO TITULAR": "abogadoTitular",
+    "ABOGADO REEMPLAZA": "abogadoReemplaza",
+    "VOY POR": "voyPor",
+    "CUANTIA": "cuantia",
+    "OBSERVACIONES": "observaciones",
+    "CORREO": "correo",
+  };
+
+  function excelDateToISO(value) {
+    if (value instanceof Date && !isNaN(value)) return value.toISOString().slice(0,10);
+    if (typeof value === "number" && Number.isFinite(value)) {
+      const p = XLSX.SSF.parse_date_code(value);
+      if (p) return `${p.y}-${String(p.m).padStart(2,"0")}-${String(p.d).padStart(2,"0")}`;
+    }
+    const text = String(value || "").trim();
+    const m = text.match(/^(\d{1,2})[\/\-](\d{1,2})[\/\-](\d{4})$/);
+    if (m) return `${m[3]}-${m[2].padStart(2,"0")}-${m[1].padStart(2,"0")}`;
+    const iso = text.match(/^(\d{4})-(\d{2})-(\d{2})/);
+    if (iso) return iso[0];
+    return "";
+  }
+
+  function excelTimeToHHMM(value) {
+    if (value instanceof Date && !isNaN(value)) {
+      return `${String(value.getHours()).padStart(2,"0")}:${String(value.getMinutes()).padStart(2,"0")}`;
+    }
+    if (typeof value === "number" && value >= 0 && value < 1) {
+      const totalMin = Math.round(value * 24 * 60);
+      return `${String(Math.floor(totalMin/60)).padStart(2,"0")}:${String(totalMin%60).padStart(2,"0")}`;
+    }
+    const text = String(value || "").trim();
+    const m = text.match(/^(\d{1,2})[:;](\d{2})/);
+    if (m) return `${m[1].padStart(2,"0")}:${m[2]}`;
+    return "";
+  }
+
+  function procesarArchivo(file) {
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const wb = XLSX.read(new Uint8Array(evt.target.result), { type: "array" });
+      let best = null;
+      wb.SheetNames.forEach(name => {
+        const json = XLSX.utils.sheet_to_json(wb.Sheets[name], { header: 1, raw: true, defval: "" });
+        for (let i = 0; i < Math.min(json.length, 15); i++) {
+          const headers = (json[i] || []).map(normalize);
+          if (headers.includes("RADICADO PROCESO") || headers.includes("FECHA")) {
+            best = { json, headerIndex: i };
+          }
+        }
+      });
+      if (!best) {
+        showToast("No se encontró una hoja con columnas reconocibles (RADICADO_PROCESO, FECHA…).", true);
+        return;
+      }
+      const rawHeaders = best.json[best.headerIndex].map(normalize);
+      filas = [];
+      for (let i = best.headerIndex + 1; i < best.json.length; i++) {
+        const r = best.json[i];
+        if (!r || r.every(c => c === "" || c == null)) continue;
+        const obj = {};
+        rawHeaders.forEach((h, idx) => {
+          const campo = MAPA_COLUMNAS[h];
+          if (campo) obj[campo] = r[idx];
+        });
+        if (!obj.fecha && !obj.radicado && !obj.procesado) continue;
+        filas.push({
+          radicado: String(obj.radicado || "").replace(/\D/g, ""),
+          fecha: excelDateToISO(obj.fecha),
+          hora: excelTimeToHHMM(obj.hora),
+          despacho: String(obj.despacho || "").trim(),
+          link: String(obj.link || "").trim(),
+          nit: String(obj.nit || "").trim(),
+          nombrePersonaJuridica: String(obj.nombrePersonaJuridica || "").trim(),
+          idProcesado: String(obj.idProcesado || "").trim(),
+          procesado: String(obj.procesado || "").trim(),
+          tipoAudiencia: String(obj.tipoAudiencia || "").trim(),
+          resultado: String(obj.resultado || "").trim(),
+          abogadoTitular: String(obj.abogadoTitular || "").trim(),
+          abogadoReemplaza: String(obj.abogadoReemplaza || "").trim(),
+          voyPor: String(obj.voyPor || "").trim(),
+          cuantia: obj.cuantia,
+          observaciones: String(obj.observaciones || "").trim(),
+          correo: String(obj.correo || "").trim(),
+        });
+      }
+      if (filas.length === 0) {
+        showToast("No se encontraron filas con datos en el archivo.", true);
+        return;
+      }
+      mostrarRevision();
+    };
+    reader.readAsArrayBuffer(file);
+  }
+
+  function filaValida(f) {
+    return /^[0-9]{23}$/.test(f.radicado) && /^\d{4}-\d{2}-\d{2}$/.test(f.fecha);
+  }
+
+  function mostrarRevision() {
+    document.getElementById("stepUpload").classList.remove("active");
+    document.getElementById("stepReview").classList.add("active");
+    document.getElementById("panelUpload").style.display = "none";
+    document.getElementById("panelReview").style.display = "block";
+    renderPreview();
+  }
+
+  function renderPreview() {
+    const body = document.getElementById("previewBody");
+    const validas = filas.filter(filaValida).length;
+    document.getElementById("resumenValidacion").textContent =
+      `${validas} de ${filas.length} filas listas para importar`;
+
+    body.innerHTML = filas.map((f, i) => {
+      const ok = filaValida(f);
+      return `
+      <tr class="${ok ? "" : "row-error"}">
+        <td>${ok ? '<span class="status-ok">OK</span>' : '<span class="status-error">Corregir</span>'}</td>
+        <td><input class="cell-input ${/^[0-9]{23}$/.test(f.radicado) ? "" : "invalid"}" data-i="${i}" data-campo="radicado" value="${escapeHtml(f.radicado)}" maxlength="23"></td>
+        <td><input class="cell-input ${/^\d{4}-\d{2}-\d{2}$/.test(f.fecha) ? "" : "invalid"}" data-i="${i}" data-campo="fecha" type="date" value="${f.fecha}"></td>
+        <td><input class="cell-input" data-i="${i}" data-campo="hora" type="time" value="${f.hora}"></td>
+        <td><input class="cell-input" data-i="${i}" data-campo="despacho" value="${escapeHtml(f.despacho)}"></td>
+        <td><input class="cell-input" data-i="${i}" data-campo="procesado" value="${escapeHtml(f.procesado || f.nombrePersonaJuridica)}"></td>
+        <td>${escapeHtml(f.tipoAudiencia || "—")}</td>
+        <td>${escapeHtml(f.resultado || "—")}</td>
+        <td>${escapeHtml(f.abogadoTitular || "—")}</td>
+      </tr>`;
+    }).join("");
+
+    body.querySelectorAll(".cell-input").forEach(input => {
+      input.addEventListener("input", (e) => {
+        const i = Number(e.target.dataset.i);
+        const campo = e.target.dataset.campo;
+        filas[i][campo] = campo === "radicado" ? e.target.value.replace(/\D/g,"").slice(0,23) : e.target.value;
+        renderPreview();
+      });
+    });
+  }
+
+  async function resolverCatalogo(tabla, cache, nombre) {
+    if (!nombre) return null;
+    const norm = normalize(nombre);
+    let existente = cache.find(c => normalize(c.nombre) === norm);
+    if (existente) return existente.id;
+    const { data, error } = await db.from(tabla).insert({ nombre: nombre.trim() }).select("id, nombre").single();
+    if (error) {
+      // pudo haberse creado en paralelo por otra fila del mismo lote; reintenta lectura
+      const { data: existing } = await db.from(tabla).select("id, nombre").ilike("nombre", nombre.trim()).maybeSingle();
+      if (existing) { cache.push(existing); return existing.id; }
+      console.error(error);
+      return null;
+    }
+    cache.push(data);
+    return data.id;
+  }
+
+  async function importar() {
+    const btn = document.getElementById("btnImportar");
+    btn.disabled = true;
+    btn.textContent = "Importando…";
+
+    const validas = filas.filter(filaValida);
+    let insertadas = 0, fallidas = 0;
+
+    for (const f of validas) {
+      const [tipoId, resultadoId, titularId, reemplazaId] = await Promise.all([
+        resolverCatalogo("tipos_audiencia", catalogoTipos, f.tipoAudiencia),
+        resolverCatalogo("resultados_audiencia", catalogoResultados, f.resultado),
+        resolverCatalogo("abogados", catalogoAbogados, f.abogadoTitular),
+        resolverCatalogo("abogados", catalogoAbogados, f.abogadoReemplaza),
+      ]);
+
+      const { error } = await db.from("audiencias").insert({
+        radicado_proceso: f.radicado,
+        fecha: f.fecha,
+        hora: f.hora || null,
+        despacho: f.despacho || null,
+        link_audiencia: f.link || null,
+        nit_persona_juridica: f.nit || null,
+        nombre_persona_juridica: f.nombrePersonaJuridica || null,
+        id_procesado: f.idProcesado || null,
+        nombre_procesado: f.procesado || null,
+        tipo_audiencia_id: tipoId,
+        resultado_audiencia_id: resultadoId,
+        abogado_titular_id: titularId,
+        abogado_reemplaza_id: reemplazaId,
+        voy_por: f.voyPor || null,
+        cuantia: f.cuantia ? Number(String(f.cuantia).replace(/[^\d.-]/g,"")) || null : null,
+        observaciones: f.observaciones || null,
+        correo: f.correo || null,
+      });
+
+      if (error) { fallidas++; console.error(error); } else { insertadas++; }
+    }
+
+    document.getElementById("stepReview").classList.remove("active");
+    document.getElementById("stepImport").classList.add("active");
+    document.getElementById("panelReview").style.display = "none";
+    document.getElementById("panelDone").style.display = "flex";
+    const omitidas = filas.length - validas.length;
+    document.getElementById("resultadoImportacion").textContent =
+      `Importadas ${insertadas} audiencias. ${fallidas ? fallidas + " fallaron al guardar. " : ""}${omitidas ? omitidas + " se omitieron por no tener radicado/fecha válidos." : ""}`;
+  }
+
+  init();
+</script>
+</body>
+</html>
