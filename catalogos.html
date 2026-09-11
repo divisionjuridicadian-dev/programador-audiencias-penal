@@ -13,6 +13,11 @@
   .cat-add{display:flex; gap:8px; margin-top:12px;}
   .cat-add input{flex:1;}
   .link-danger{font-size:11px; color:var(--red); cursor:pointer; background:none; border:none; padding:2px 4px;}
+  .despachos-card{margin-top:16px;}
+  .despachos-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; max-height:480px; overflow-y:auto;}
+  .despachos-list li{padding:8px 10px; border:1px solid var(--line); border-radius:6px; font-size:12.5px;}
+  .despachos-list .desp-nombre{color:var(--ink); font-weight:600;}
+  .despachos-list .desp-meta{color:var(--ink-soft); font-family:var(--mono); font-size:11px; margin-top:2px;}
 </style>
 </head>
 <body>
@@ -74,6 +79,22 @@
       </div>
     </div>
   </div>
+
+  <div class="card despachos-card">
+    <div class="card-head">
+      <div>
+        <h2>Juzgados de Antioquia</h2>
+        <p>Directorio oficial de Rama Judicial — solo consulta, no editable</p>
+      </div>
+      <p class="pill-count" id="despachosCount"></p>
+    </div>
+    <div class="card-body">
+      <div class="field" style="margin-bottom:12px;">
+        <input type="text" id="buscarDespacho" placeholder="Buscar por nombre, municipio o código…">
+      </div>
+      <ul class="despachos-list" id="listaDespachos"></ul>
+    </div>
+  </div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -87,7 +108,43 @@
       cargarLista("abogados", "listaAbogados"),
       cargarLista("tipos_audiencia", "listaTipos"),
       cargarLista("resultados_audiencia", "listaResultados"),
+      cargarDespachos(),
     ]);
+  }
+
+  let todosLosDespachos = [];
+
+  async function cargarDespachos() {
+    const { data, error } = await db
+      .from("despachos_directorio")
+      .select("codigo, nombre, municipio, circuito")
+      .eq("departamento", "ANTIOQUIA")
+      .order("municipio")
+      .order("nombre");
+    if (error) { console.error(error); return; }
+    todosLosDespachos = data;
+    document.getElementById("despachosCount").textContent = `${data.length} juzgados`;
+    renderDespachos();
+    document.getElementById("buscarDespacho").addEventListener("input", renderDespachos);
+  }
+
+  function renderDespachos() {
+    const q = document.getElementById("buscarDespacho").value.trim().toUpperCase();
+    const ul = document.getElementById("listaDespachos");
+    const filtrados = q
+      ? todosLosDespachos.filter(d =>
+          d.nombre.toUpperCase().includes(q) ||
+          d.municipio.toUpperCase().includes(q) ||
+          d.codigo.includes(q))
+      : todosLosDespachos.slice(0, 50);
+    ul.innerHTML = filtrados.map(d => `
+      <li>
+        <div class="desp-nombre">${escapeHtml(d.nombre)}</div>
+        <div class="desp-meta">${escapeHtml(d.codigo)} · ${escapeHtml(d.municipio)}${d.circuito && d.circuito !== d.municipio ? " · circuito " + escapeHtml(d.circuito) : ""}</div>
+      </li>`).join("") || '<li class="muted">Sin resultados.</li>';
+    if (!q && todosLosDespachos.length > 50) {
+      ul.insertAdjacentHTML("beforeend", `<li class="muted">Escribe para buscar entre los ${todosLosDespachos.length} juzgados…</li>`);
+    }
   }
 
   async function cargarLista(tabla, elId) {
