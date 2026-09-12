@@ -97,7 +97,8 @@
 <script>
   let todasLasFilas = [];
 
-  const ESTADOS_FIJOS = ["Audiencia hoy","Esta semana","Este mes","Próximo mes","Más adelante","Por definir",
+  // Solo define el orden en que se muestran cuando existen; no limita cuáles aparecen.
+  const ORDEN_ESTADOS = ["Audiencia hoy","Esta semana","Este mes","Próximo mes","Más adelante","Por definir",
                           "Se realizo","No se realizo","Audiencia gestionada sin éxito","No centro de servicios"];
 
   async function init() {
@@ -107,7 +108,6 @@
 
     const abogados = await cargarCatalogo("abogados");
     llenarSelectFiltro(document.getElementById("fAbogado"), abogados.map(a => a.nombre));
-    llenarSelectFiltro(document.getElementById("fEstado"), ESTADOS_FIJOS);
 
     document.getElementById("btnRefresh").addEventListener("click", cargarDatos);
     document.getElementById("btnLimpiar").addEventListener("click", limpiarFiltros);
@@ -123,6 +123,21 @@
       opt.value = v; opt.textContent = v;
       select.appendChild(opt);
     });
+  }
+
+  // Repuebla el select de Estado solo con los estados presentes en `filas`
+  // (ya filtradas por fecha/abogado/búsqueda), en vez de una lista fija.
+  function actualizarOpcionesEstado(filas) {
+    const select = document.getElementById("fEstado");
+    const valorActual = select.value;
+
+    const presentes = new Set(filas.map(r => r.estado).filter(Boolean));
+    const ordenados = ORDEN_ESTADOS.filter(e => presentes.has(e));
+    presentes.forEach(e => { if (!ordenados.includes(e)) ordenados.push(e); });
+
+    select.innerHTML = '<option value="">Todos</option>' +
+      ordenados.map(e => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join("");
+    select.value = ordenados.includes(valorActual) ? valorActual : "";
   }
 
   async function cargarDatos() {
@@ -154,13 +169,13 @@
     const q = normalize(document.getElementById("fBuscar").value.trim());
     const desde = document.getElementById("fDesde").value;
     const hasta = document.getElementById("fHasta").value;
-    const estado = document.getElementById("fEstado").value;
     const abogado = document.getElementById("fAbogado").value;
 
-    const filas = todasLasFilas.filter(r => {
+    // Filtros de fecha/abogado/búsqueda primero: el filtro de Estado se calcula
+    // sobre lo que estos ya dejaron, para solo ofrecer estados que sí existan ahí.
+    const filasSinEstado = todasLasFilas.filter(r => {
       if (desde && r.fecha < desde) return false;
       if (hasta && r.fecha > hasta) return false;
-      if (estado && r.estado !== estado) return false;
       if (abogado && r.abogado_titular !== abogado) return false;
       if (q) {
         const blob = normalize([r.radicado_proceso, r.nombre_procesado, r.nombre_persona_juridica, r.despacho].join(" "));
@@ -168,6 +183,10 @@
       }
       return true;
     });
+
+    actualizarOpcionesEstado(filasSinEstado);
+    const estado = document.getElementById("fEstado").value;
+    const filas = estado ? filasSinEstado.filter(r => r.estado === estado) : filasSinEstado;
 
     document.getElementById("scopeText").textContent =
       `${filas.length} de ${todasLasFilas.length} audiencias`;
