@@ -105,10 +105,6 @@
             <label for="cuantia">Cuantía</label>
             <input type="number" id="cuantia" step="1" min="0">
           </div>
-          <div class="field">
-            <label for="voyPor">Voy por</label>
-            <input type="text" id="voyPor">
-          </div>
 
           <div class="field span-2">
             <label for="linkAudiencia">Enlace de la audiencia</label>
@@ -189,7 +185,6 @@
     document.getElementById("nitPersonaJuridica").value = data.nit_persona_juridica || "";
     document.getElementById("nombrePersonaJuridica").value = data.nombre_persona_juridica || "";
     document.getElementById("cuantia").value = data.cuantia ?? "";
-    document.getElementById("voyPor").value = data.voy_por || "";
     document.getElementById("linkAudiencia").value = data.link_audiencia || "";
     document.getElementById("correo").value = data.correo || "";
     document.getElementById("observaciones").value = data.observaciones || "";
@@ -211,7 +206,6 @@
       nit_persona_juridica: document.getElementById("nitPersonaJuridica").value || null,
       nombre_persona_juridica: document.getElementById("nombrePersonaJuridica").value || null,
       cuantia: document.getElementById("cuantia").value === "" ? null : Number(document.getElementById("cuantia").value),
-      voy_por: document.getElementById("voyPor").value || null,
       link_audiencia: document.getElementById("linkAudiencia").value || null,
       correo: document.getElementById("correo").value || null,
       observaciones: document.getElementById("observaciones").value || null,
