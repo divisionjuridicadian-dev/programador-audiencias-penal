@@ -90,16 +90,16 @@
           <label>Buscar</label>
           <input type="text" id="fBuscar" placeholder="Radicado, procesado, despacho…">
         </div>
-        <div class="field">
-          <label>Período</label>
-          <div class="vista-toggle" id="periodoToggle">
-            <button type="button" data-periodo="hoy">Hoy</button>
-            <button type="button" data-periodo="manana">Mañana</button>
-            <button type="button" data-periodo="semana">Esta semana</button>
-            <button type="button" data-periodo="proxima_semana">Próxima semana</button>
-            <button type="button" data-periodo="mes">Este mes</button>
-            <button type="button" data-periodo="anio">Este año</button>
-            <button type="button" data-periodo="todos">Todos</button>
+        <div class="field grow">
+          <label id="lblPeriodo">Período</label>
+          <div class="chip-group" id="periodoToggle" role="group" aria-labelledby="lblPeriodo">
+            <button type="button" class="chip" data-periodo="hoy" aria-pressed="false">Hoy</button>
+            <button type="button" class="chip" data-periodo="manana" aria-pressed="false">Mañana</button>
+            <button type="button" class="chip" data-periodo="semana" aria-pressed="false">Esta semana</button>
+            <button type="button" class="chip" data-periodo="proxima_semana" aria-pressed="false">Próxima semana</button>
+            <button type="button" class="chip" data-periodo="mes" aria-pressed="false">Este mes</button>
+            <button type="button" class="chip" data-periodo="anio" aria-pressed="false">Este año</button>
+            <button type="button" class="chip" data-periodo="todos" aria-pressed="false">Todos</button>
           </div>
         </div>
         <div class="field">
@@ -407,12 +407,16 @@
     const [desde, hasta] = RANGOS_PERIODO[clave]();
     document.getElementById("fDesde").value = desde;
     document.getElementById("fHasta").value = hasta;
-    document.querySelectorAll("#periodoToggle button").forEach(b => b.classList.toggle("active", b === btn));
+    // aria-pressed es la única fuente de verdad del estado activo (no hay
+    // clase ".active" aparte): así el estilo (.chip[aria-pressed="true"])
+    // y la semántica de accesibilidad nunca se pueden desincronizar.
+    document.querySelectorAll("#periodoToggle button").forEach(b =>
+      b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
     renderTabla();
   }
 
   function limpiarPeriodoActivo() {
-    document.querySelectorAll("#periodoToggle button").forEach(b => b.classList.remove("active"));
+    document.querySelectorAll("#periodoToggle button").forEach(b => b.setAttribute("aria-pressed", "false"));
   }
 
   function llenarSelectFiltro(select, valores) {

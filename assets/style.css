@@ -300,9 +300,9 @@ select.modalidad-select:hover, select.modalidad-select:focus{
 .cols-panel-item:hover{background:var(--paper-dim);}
 .cols-panel-item input{margin:0;}
 
-/* ===== Grupo de botones tipo "chip" — usado para el selector de vista
-   (Tabla / Tarjetas) y para el filtro rápido de período (Hoy / Mañana / …) ===== */
-.vista-toggle{display:inline-flex; flex-wrap:wrap; border:1px solid var(--line); border-radius:7px; overflow:hidden;}
+/* ===== Selector de vista (Tabla / Tarjetas) — control segmentado clásico,
+   siempre 2 opciones fijas, nunca necesita envolver ni hacer scroll. ===== */
+.vista-toggle{display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden;}
 .vista-toggle button{
   border:none; background:#fff; color:var(--ink-soft); padding:7px 10px; cursor:pointer;
   display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; white-space:nowrap;
@@ -310,6 +310,27 @@ select.modalidad-select:hover, select.modalidad-select:focus{
 .vista-toggle button + button{border-left:1px solid var(--line);}
 .vista-toggle button:hover{background:var(--paper-dim);}
 .vista-toggle button.active{background:var(--navy-900); color:#fff;}
+
+/* ===== Grupo de "chips" — para filtros rápidos de varias opciones (más de
+   2-3) donde conviene una sola fila con scroll horizontal en vez de que el
+   grupo se rompa en varias líneas (eso se veía mal en móvil con el filtro
+   de período: 7 botones envolviendo dentro de una caja con overflow:hidden
+   y esquinas redondeadas). Estado activo por aria-pressed, no por clase —
+   una sola fuente de verdad que además ya trae la semántica de accesibilidad. */
+.chip-group{
+  display:flex; gap:8px; overflow-x:auto; overflow-y:hidden; padding-bottom:3px;
+  -webkit-overflow-scrolling:touch; scrollbar-width:thin;
+}
+.chip-group::-webkit-scrollbar{height:5px;}
+.chip-group::-webkit-scrollbar-thumb{background:var(--line); border-radius:10px;}
+.chip{
+  flex:none; white-space:nowrap; border:1px solid var(--line); border-radius:20px; background:#fff;
+  color:var(--ink-soft); padding:6px 13px; font-size:12.5px; font-weight:600; cursor:pointer;
+  transition:background .12s ease, border-color .12s ease, color .12s ease;
+}
+.chip:hover{background:var(--paper-dim);}
+.chip:focus-visible{outline:2px solid var(--gold); outline-offset:1px;}
+.chip[aria-pressed="true"]{background:var(--navy-900); border-color:var(--navy-900); color:#fff;}
 
 /* ===== Vista de tarjetas — emula el patrón "ficha de proceso" de
    Control de Términos (borde de color según urgencia, radicado
