@@ -90,7 +90,7 @@ a{color:var(--govco-cobalt);}
 
 /* ===== Marca (logo / escudo) — reutilizada en el sidebar y en login ===== */
 .brand-logo{height:38px; width:38px; object-fit:contain; flex:none; display:block;}
-.sidebar-brand .brand-logo{height:104px; width:104px;}
+.sidebar-brand .brand-logo{height:130px; width:130px;}
 .login-head .brand-logo{margin:0 auto 10px;}
 /* El logo de la DIAN trae su propio texto oscuro, así que va sobre una
    pastilla blanca para que se lea bien contra el fondo navy oscuro. */
