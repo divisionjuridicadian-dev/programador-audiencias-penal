@@ -206,10 +206,17 @@
 <script>
   let todasLasFilas = [];
   let filasVisibles = []; // último subconjunto filtrado, para exportarExcel()
+  let resultadosCatalogo = []; // {id, nombre} activos, para el selector de Resultado en la tarjeta
 
-  // Solo define el orden en que se muestran cuando existen; no limita cuáles aparecen.
+  // Solo define el orden en que se muestran cuando existen; no limita cuáles
+  // aparecen (cualquier estado que no esté aquí — p.ej. un resultado antiguo
+  // desactivado que sigue en audiencias históricas — se agrega igual al
+  // final, ver actualizarOpcionesEstado()).
   const ORDEN_ESTADOS = ["Audiencia hoy","Esta semana","Este mes","Próximo mes","Más adelante","Por definir",
-                          "Se realizo","No se realizo","Audiencia gestionada sin éxito","No centro de servicios"];
+                          "Cesación del Procedimiento por Pago","Preclusión (Solicitada por la Fiscalía)",
+                          "Principio de Oportunidad","Allanamiento a cargos (Aceptación de Responsabilidad)",
+                          "Archivo de las diligencias","Reprogramación o Aplazamiento",
+                          "No se realiza la audiencia (Cancelación)"];
 
   async function init() {
     const session = await requireSession();
@@ -218,6 +225,7 @@
 
     const abogados = await cargarCatalogo("abogados");
     llenarSelectFiltro(document.getElementById("fAbogado"), abogados.map(a => a.nombre));
+    resultadosCatalogo = await cargarCatalogo("resultados_audiencia");
 
     // Por defecto solo se ve de hoy en adelante; lo anterior queda oculto salvo
     // que se cambie el filtro de fecha manualmente.
@@ -538,11 +546,16 @@
     `;
   }
 
-  function abrirModalNovedad(audienciaId) {
+  // textoPrellenado: lo usa actualizarResultado() para dejar precargado el
+  // nombre del resultado elegido — el usuario solo tiene que completar la
+  // observación/acción a realizar.
+  function abrirModalNovedad(audienciaId, textoPrellenado) {
     novedadAudienciaId = audienciaId;
     document.getElementById("formNovedad").reset();
     document.getElementById("novedadFecha").value = fechaHoyISO();
+    if (textoPrellenado) document.getElementById("novedadTexto").value = textoPrellenado;
     document.getElementById("modalNovedad").classList.add("show");
+    document.getElementById(textoPrellenado ? "novedadObservacion" : "novedadTexto").focus();
   }
 
   function cerrarModalNovedad() {
@@ -716,7 +729,10 @@
           </div>
         </div>
         <div class="audiencia-card-foot">
-          <div class="audiencia-card-modalidad">${celdaModalidad(r)}</div>
+          <div class="audiencia-card-foot-selects">
+            <div class="audiencia-card-modalidad">${celdaModalidad(r)}</div>
+            <div class="audiencia-card-resultado">${celdaResultado(r)}</div>
+          </div>
           <div class="audiencia-card-actions">
             <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">${ICONOS.editar}</button>
           </div>
@@ -856,6 +872,47 @@
     if (fila) fila.modalidad = valor;
     renderTabla();
     showToast("Modalidad actualizada: " + valor);
+  }
+
+  // Selector de Resultado directamente en la tarjeta (catálogo editable en
+  // catalogos.html). Si el resultado ya guardado es uno antiguo desactivado
+  // (de antes de la limpieza del catálogo), se agrega como opción aparte
+  // para no perder el dato, aunque no se pueda volver a elegir desde cero.
+  function celdaResultado(r) {
+    const yaEnCatalogo = resultadosCatalogo.some(res => res.id === r.resultado_audiencia_id);
+    const opcionHistorica = (r.resultado_audiencia_id && !yaEnCatalogo)
+      ? `<option value="${r.resultado_audiencia_id}" selected>${escapeHtml(r.resultado_audiencia || "")}</option>`
+      : "";
+    const opciones = resultadosCatalogo.map(res =>
+      `<option value="${res.id}" ${res.id === r.resultado_audiencia_id ? "selected" : ""}>${escapeHtml(res.nombre)}</option>`
+    ).join("");
+    return `
+      <select class="resultado-select" title="Resultado de la audiencia" onchange="actualizarResultado('${r.id}', this.value)">
+        <option value="" ${r.resultado_audiencia_id ? "" : "selected"}>Resultado —</option>
+        ${opcionHistorica}
+        ${opciones}
+      </select>
+    `;
+  }
+
+  // Al elegir un resultado se guarda en la audiencia y, además, se abre el
+  // modal de "Agregar novedad" precargado con el nombre del resultado y la
+  // fecha de hoy — solo falta que el usuario escriba la acción a realizar
+  // u observación. Al limpiar el resultado (valor vacío) no se abre nada.
+  async function actualizarResultado(id, resultadoId) {
+    const { error } = await db.from("audiencias").update({ resultado_audiencia_id: resultadoId || null }).eq("id", id);
+    if (error) {
+      console.error(error);
+      showToast("No se pudo guardar el resultado.", true);
+      return;
+    }
+    const resultadoNombre = resultadoId ? (resultadosCatalogo.find(res => res.id === resultadoId)?.nombre || "") : "";
+    showToast(resultadoId ? "Resultado guardado." : "Resultado eliminado.");
+    // Se vuelve a consultar la vista (en vez de parchar la fila local) porque
+    // el "estado" mostrado en la tarjeta depende del resultado — lo calcula
+    // la vista audiencias_estado, no vale la pena duplicar esa lógica acá.
+    await cargarDatos();
+    if (resultadoId) abrirModalNovedad(id, resultadoNombre);
   }
 
   // Nombre del procesado en negrita y, debajo, el de la persona jurídica en

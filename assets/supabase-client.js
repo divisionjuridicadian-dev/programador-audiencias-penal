@@ -67,14 +67,29 @@ function formatCuantia(n) {
   return "$ " + Number(n).toLocaleString("es-CO", { maximumFractionDigits: 0 });
 }
 
+// Resultados que dejan la audiencia con un desenlace de fondo (aunque no
+// haya "ganado" nadie en sentido estricto, el proceso avanzó/se resolvió) —
+// se pintan igual que el antiguo "Se realizo". El resto de resultados
+// (reprogramación, cancelación) y cualquier estado sin match cae a
+// badge-nodef, igual que antes.
+const RESULTADOS_CONCLUIDOS = [
+  "cesación del procedimiento por pago",
+  "preclusión (solicitada por la fiscalía)",
+  "principio de oportunidad",
+  "allanamiento a cargos (aceptación de responsabilidad)",
+  "archivo de las diligencias",
+  // nombres antiguos del catálogo, desactivados pero aún presentes en
+  // audiencias históricas — se mantienen para no perder el color.
+  "se realizo", "se realizó", "casacion", "casación",
+];
+
 function badgeClassForEstado(estado) {
   const e = (estado || "").toLowerCase();
   if (e === "audiencia hoy") return "badge-hoy";
   if (e === "esta semana") return "badge-semana";
   if (e === "este mes") return "badge-mes";
   if (e === "próximo mes" || e === "más adelante" || e === "por definir") return "badge-adelante";
-  if (["se realizo", "se realizó"].includes(e)) return "badge-realizada";
-  if (["no se realizo", "no se realizó", "audiencia gestionada sin éxito", "no centro de servicios"].includes(e)) return "badge-nodef";
+  if (RESULTADOS_CONCLUIDOS.includes(e)) return "badge-realizada";
   return "badge-nodef";
 }
 

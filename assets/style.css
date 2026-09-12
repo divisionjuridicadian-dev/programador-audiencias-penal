@@ -281,12 +281,13 @@ tbody tr.fila-presencial:hover{background:#f0dcb4;}
 
 /* Edición en línea sutil: sin borde/fondo hasta hover o foco, para que no
    se lean como "inputs" en medio de celdas de solo lectura. */
-input.time-input-mini, select.modalidad-select{
+input.time-input-mini, select.modalidad-select, select.resultado-select{
   width:auto; padding:5px 7px; font-size:12px; display:inline-block;
   border-color:transparent; background:transparent; color:inherit; transition:background .12s, border-color .12s;
 }
 input.time-input-mini:hover, input.time-input-mini:focus,
-select.modalidad-select:hover, select.modalidad-select:focus{
+select.modalidad-select:hover, select.modalidad-select:focus,
+select.resultado-select:hover, select.resultado-select:focus{
   border-color:var(--line); background:#fff;
 }
 
@@ -389,7 +390,9 @@ select.modalidad-select:hover, select.modalidad-select:focus{
   display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px;
   margin-top:12px; padding-top:10px; border-top:1px dashed var(--line);
 }
+.audiencia-card-foot-selects{display:flex; align-items:center; gap:14px; flex-wrap:wrap;}
 .audiencia-card-modalidad{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft);}
+.audiencia-card-resultado{display:flex; align-items:center; font-size:12px; color:var(--ink-soft);}
 .audiencia-card-actions{display:flex; align-items:center; gap:6px;}
 
 /* ===== Novedades: bitácora manual por audiencia, siempre visible al pie
