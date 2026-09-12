@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Programador de Audiencias · Unidad Penal DIAN</title>
 <link rel="stylesheet" href="assets/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 </head>
 <body>
 
@@ -12,6 +13,7 @@
   <div class="top-row">
     <div class="brandblock">
       <div class="tab-mark"></div>
+      <div class="brand-escudo-wrap"><img src="assets/escudo_colombia.png" alt="DIAN"></div>
       <div>
         <h1>Programador de Audiencias</h1>
         <div class="subtitle">Unidad Penal · DIAN</div>
@@ -38,6 +40,7 @@
         <p id="scopeText">Cargando…</p>
       </div>
       <div class="row" style="gap:8px;">
+        <button class="btn-ghost" id="btnExportar" type="button">Exportar a Excel</button>
         <div style="position:relative;">
           <button class="btn-ghost" id="btnColumnas" type="button">Columnas</button>
           <div class="cols-panel" id="colsPanel" style="display:none;"></div>
@@ -119,6 +122,7 @@
 <script src="assets/supabase-client.js"></script>
 <script>
   let todasLasFilas = [];
+  let filasVisibles = []; // último subconjunto filtrado, para exportarExcel()
 
   // Solo define el orden en que se muestran cuando existen; no limita cuáles aparecen.
   const ORDEN_ESTADOS = ["Audiencia hoy","Esta semana","Este mes","Próximo mes","Más adelante","Por definir",
@@ -137,6 +141,7 @@
     document.getElementById("fDesde").value = fechaHoyISO();
 
     document.getElementById("btnRefresh").addEventListener("click", cargarDatos);
+    document.getElementById("btnExportar").addEventListener("click", exportarExcel);
     document.getElementById("btnLimpiar").addEventListener("click", limpiarFiltros);
     ["fBuscar","fDesde","fHasta","fEstado","fAbogado"].forEach(id =>
       document.getElementById(id).addEventListener("input", renderTabla));
@@ -144,6 +149,43 @@
     inicializarSelectorColumnas();
     mostrarSkeleton();
     await cargarDatos();
+  }
+
+  // Exporta exactamente lo que dejan ver los filtros activos (fecha, estado,
+  // abogado, búsqueda) — no depende de qué columnas están ocultas en pantalla,
+  // eso es solo una preferencia de visualización, no un filtro de datos.
+  function exportarExcel() {
+    if (!filasVisibles.length) {
+      showToast("No hay audiencias para exportar con estos filtros.", true);
+      return;
+    }
+    const datos = filasVisibles.map(r => {
+      const dur = calcularDuracion(r.hora, r.hora_fin);
+      return {
+        "Fecha": formatFecha(r.fecha),
+        "Hora inicio": r.hora ? r.hora.slice(0, 5) : "",
+        "Hora fin": r.hora_fin ? r.hora_fin.slice(0, 5) : "",
+        "Duración": dur && !dur.invalido ? dur.texto : "",
+        "Estado": r.estado || "",
+        "Radicado": r.radicado_proceso || "",
+        "Despacho": r.despacho || "",
+        "Nombre del procesado": r.nombre_procesado || "",
+        "Persona jurídica": r.nombre_persona_juridica || "",
+        "Tipo de audiencia": r.tipo_audiencia || "",
+        "Abogado titular": r.abogado_titular || "",
+        "Abogado que reemplaza": r.abogado_reemplaza || "",
+        "Modalidad": r.modalidad || "",
+        "Enlace": r.link_audiencia || "",
+        "Observaciones": r.observaciones || "",
+      };
+    });
+
+    const hoja = XLSX.utils.json_to_sheet(datos);
+    hoja["!cols"] = Object.keys(datos[0]).map(k => ({ wch: Math.max(k.length, 14) }));
+    const libro = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(libro, hoja, "Audiencias");
+    XLSX.writeFile(libro, `audiencias_${fechaHoyISO()}.xlsx`);
+    showToast(`Exportadas ${datos.length} audiencias.`);
   }
 
   // ===== Selector de columnas visibles (para no saturar la tabla) =====
@@ -290,6 +332,7 @@
     actualizarOpcionesEstado(filasSinEstado);
     const estado = document.getElementById("fEstado").value;
     const filas = estado ? filasSinEstado.filter(r => r.estado === estado) : filasSinEstado;
+    filasVisibles = filas; // para exportarExcel(): exporta justo lo que se ve filtrado
 
     document.getElementById("scopeText").textContent =
       `${filas.length} de ${todasLasFilas.length} audiencias`;

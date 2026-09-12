@@ -50,6 +50,11 @@ header.top::before{
 .brandblock{display:flex; align-items:center; gap:11px;}
 .tab-mark{width:26px; height:32px; background:var(--gold); border-radius:2px 5px 5px 2px; position:relative; flex:none;}
 .tab-mark::after{content:""; position:absolute; left:5px; top:6px; right:5px; height:1.5px; background:var(--navy-950); box-shadow:0 5px 0 var(--navy-950), 0 10px 0 var(--navy-950); opacity:.55;}
+/* El logo de la DIAN trae su propio texto oscuro, así que va sobre una
+   pastilla blanca para que se lea bien contra el header navy oscuro. */
+.brand-escudo-wrap{background:#fff; border-radius:6px; padding:4px 9px; display:inline-flex; align-items:center; flex:none; line-height:0;}
+.brand-escudo-wrap img{height:22px; width:auto; display:block;}
+.login-head .brand-escudo-wrap{margin:0 auto 12px;}
 h1{font-family:var(--serif); font-weight:600; font-size:19px; margin:0; letter-spacing:.2px; line-height:1.1;}
 .subtitle{font-size:10.5px; color:var(--gold-soft); letter-spacing:.11em; text-transform:uppercase; margin-top:2px; font-weight:600;}
 
