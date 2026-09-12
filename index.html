@@ -241,7 +241,7 @@
           </span>
         </td>
         <td>${copyText(r.id,"despacho", escapeHtml(r.despacho || "—"))}</td>
-        <td>${copyText(r.id,"procesado", escapeHtml(r.nombre_procesado || r.nombre_persona_juridica || "—"))}</td>
+        <td>${celdaProcesado(r)}</td>
         <td>${copyText(r.id,"tipo", escapeHtml(r.tipo_audiencia || "—"))}</td>
         <td>${copyText(r.id,"titular", escapeHtml(r.abogado_titular || "—"))}</td>
         <td>${copyText(r.id,"reemplaza", escapeHtml(r.abogado_reemplaza || "—"))}</td>
@@ -310,6 +310,16 @@
       return `<span title="Audiencia virtual">💻</span> <a href="${escapeHtml(link)}" target="_blank" rel="noopener" title="${escapeHtml(link)}">Enlace</a>`;
     }
     return `<span title="Audiencia presencial">🧑</span> <span class="muted" style="font-size:12px;">Presencial</span>`;
+  }
+
+  // Nombre del procesado en negrita y, debajo, el de la persona jurídica en
+  // gris (var(--ink-soft)) si también hay uno — ambos pueden existir a la vez.
+  function celdaProcesado(r) {
+    const partes = [];
+    if (r.nombre_procesado) partes.push(`<div style="font-weight:700;">${escapeHtml(r.nombre_procesado)}</div>`);
+    if (r.nombre_persona_juridica) partes.push(`<div class="muted" style="font-size:11.5px;">${escapeHtml(r.nombre_persona_juridica)}</div>`);
+    const contenido = partes.length ? partes.join("") : "—";
+    return copyText(r.id, "procesado", contenido);
   }
 
   function copyText(id, campo, texto, opts) {
