@@ -91,6 +91,15 @@
           <input type="text" id="fBuscar" placeholder="Radicado, procesado, despacho…">
         </div>
         <div class="field">
+          <label>Período</label>
+          <div class="vista-toggle" id="periodoToggle">
+            <button type="button" data-periodo="hoy">Hoy</button>
+            <button type="button" data-periodo="manana">Mañana</button>
+            <button type="button" data-periodo="semana">Esta semana</button>
+            <button type="button" data-periodo="proxima_semana">Próxima semana</button>
+          </div>
+        </div>
+        <div class="field">
           <label>Desde</label>
           <input type="date" id="fDesde">
         </div>
@@ -183,8 +192,14 @@
     document.getElementById("btnRefresh").addEventListener("click", cargarDatos);
     document.getElementById("btnExportar").addEventListener("click", exportarExcel);
     document.getElementById("btnLimpiar").addEventListener("click", limpiarFiltros);
-    ["fBuscar","fDesde","fHasta","fEstado","fAbogado"].forEach(id =>
+    ["fBuscar","fEstado","fAbogado"].forEach(id =>
       document.getElementById(id).addEventListener("input", renderTabla));
+    // Desde/Hasta también limpian el período rápido activo: al tocarlos a
+    // mano el rango deja de corresponder exactamente a "Hoy"/"Mañana"/etc.
+    ["fDesde","fHasta"].forEach(id =>
+      document.getElementById(id).addEventListener("input", () => { limpiarPeriodoActivo(); renderTabla(); }));
+    document.querySelectorAll("#periodoToggle button").forEach(btn =>
+      btn.addEventListener("click", () => aplicarPeriodo(btn.dataset.periodo, btn)));
 
     inicializarSelectorVista();
     inicializarSelectorColumnas();
@@ -341,6 +356,49 @@
     return sinOffset.toISOString().slice(0, 10);
   }
 
+  // ===== Filtro rápido de período (Hoy / Mañana / Esta semana / Próxima semana) =====
+  function fechaISO(date) {
+    const sinOffset = new Date(date.getTime() - date.getTimezoneOffset() * 60000);
+    return sinOffset.toISOString().slice(0, 10);
+  }
+
+  // Date "puro" (medianoche local), para sumar/restar días sin líos de horas.
+  function hoyComoDate() {
+    const d = new Date();
+    return new Date(d.getFullYear(), d.getMonth(), d.getDate());
+  }
+
+  function sumarDias(date, n) {
+    const d = new Date(date);
+    d.setDate(d.getDate() + n);
+    return d;
+  }
+
+  // Lunes de la semana que contiene `date` (semana de lunes a domingo).
+  function lunesDeLaSemana(date) {
+    const diasDesdeLunes = (date.getDay() + 6) % 7; // getDay(): 0=domingo..6=sábado
+    return sumarDias(date, -diasDesdeLunes);
+  }
+
+  const RANGOS_PERIODO = {
+    hoy: () => { const h = hoyComoDate(); return [fechaISO(h), fechaISO(h)]; },
+    manana: () => { const m = sumarDias(hoyComoDate(), 1); return [fechaISO(m), fechaISO(m)]; },
+    semana: () => { const l = lunesDeLaSemana(hoyComoDate()); return [fechaISO(l), fechaISO(sumarDias(l, 6))]; },
+    proxima_semana: () => { const l = sumarDias(lunesDeLaSemana(hoyComoDate()), 7); return [fechaISO(l), fechaISO(sumarDias(l, 6))]; },
+  };
+
+  function aplicarPeriodo(clave, btn) {
+    const [desde, hasta] = RANGOS_PERIODO[clave]();
+    document.getElementById("fDesde").value = desde;
+    document.getElementById("fHasta").value = hasta;
+    document.querySelectorAll("#periodoToggle button").forEach(b => b.classList.toggle("active", b === btn));
+    renderTabla();
+  }
+
+  function limpiarPeriodoActivo() {
+    document.querySelectorAll("#periodoToggle button").forEach(b => b.classList.remove("active"));
+  }
+
   function llenarSelectFiltro(select, valores) {
     valores.forEach(v => {
       const opt = document.createElement("option");
@@ -382,6 +440,7 @@
     document.getElementById("fHasta").value = "";
     document.getElementById("fEstado").value = "";
     document.getElementById("fAbogado").value = "";
+    limpiarPeriodoActivo();
     renderTabla();
   }
 
@@ -485,7 +544,7 @@
               <span class="badge copyable ${badgeClassForEstado(r.estado)}" title="Clic para copiar" onclick="copiarValor('${r.id}','estado')">${escapeHtml(r.estado)}</span>
             </div>
             <div class="audiencia-card-despacho" title="${escapeHtml(r.despacho || "Sin despacho")}">${copyText(r.id, "despacho", escapeHtml(r.despacho || "—"))}</div>
-            <div class="audiencia-card-procesado">${celdaProcesado(r)}</div>
+            <div class="audiencia-card-procesado">${celdaProcesado(r, { pjGrande: true })}</div>
             ${r.abogado_titular ? `<div class="audiencia-card-titular">Apoderado Titular: <strong>${escapeHtml(r.abogado_titular)}</strong></div>` : ""}
             ${r.abogado_reemplaza ? `<div class="muted" style="font-size:11.5px; margin-top:2px;">Reemplaza: ${escapeHtml(r.abogado_reemplaza)}</div>` : ""}
             ${r.observaciones ? `<div class="muted truncate" style="font-size:11.5px; margin-top:5px; max-width:100%;">${copyText(r.id, "observaciones", escapeHtml(r.observaciones), { title: r.observaciones })}</div>` : ""}
@@ -640,10 +699,17 @@
 
   // Nombre del procesado en negrita y, debajo, el de la persona jurídica en
   // gris (var(--ink-soft)) si también hay uno — ambos pueden existir a la vez.
-  function celdaProcesado(r) {
+  // En la tarjeta (opts.pjGrande) la persona jurídica va entre paréntesis y
+  // un poco más grande que en la tabla, para que se lea mejor.
+  function celdaProcesado(r, opts) {
+    opts = opts || {};
+    const tamPJ = opts.pjGrande ? "13px" : "11.5px";
     const partes = [];
     if (r.nombre_procesado) partes.push(`<div style="font-weight:700;">${escapeHtml(r.nombre_procesado)}</div>`);
-    if (r.nombre_persona_juridica) partes.push(`<div class="muted" style="font-size:11.5px;">${escapeHtml(r.nombre_persona_juridica)}</div>`);
+    if (r.nombre_persona_juridica) {
+      const texto = opts.pjGrande ? `(${escapeHtml(r.nombre_persona_juridica)})` : escapeHtml(r.nombre_persona_juridica);
+      partes.push(`<div class="muted" style="font-size:${tamPJ};">${texto}</div>`);
+    }
     const contenido = partes.length ? partes.join("") : "—";
     return copyText(r.id, "procesado", contenido);
   }

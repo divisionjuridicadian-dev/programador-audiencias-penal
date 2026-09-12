@@ -300,11 +300,12 @@ select.modalidad-select:hover, select.modalidad-select:focus{
 .cols-panel-item:hover{background:var(--paper-dim);}
 .cols-panel-item input{margin:0;}
 
-/* ===== Selector de vista (Tabla / Tarjetas) ===== */
-.vista-toggle{display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden;}
+/* ===== Grupo de botones tipo "chip" — usado para el selector de vista
+   (Tabla / Tarjetas) y para el filtro rápido de período (Hoy / Mañana / …) ===== */
+.vista-toggle{display:inline-flex; flex-wrap:wrap; border:1px solid var(--line); border-radius:7px; overflow:hidden;}
 .vista-toggle button{
   border:none; background:#fff; color:var(--ink-soft); padding:7px 10px; cursor:pointer;
-  display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600;
+  display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600; white-space:nowrap;
 }
 .vista-toggle button + button{border-left:1px solid var(--line);}
 .vista-toggle button:hover{background:var(--paper-dim);}
@@ -329,12 +330,12 @@ select.modalidad-select:hover, select.modalidad-select:focus{
 .audiencia-card-top{display:flex; flex-wrap:wrap; justify-content:space-between; gap:14px;}
 .audiencia-card-main{min-width:0; flex:1 1 320px;}
 .audiencia-card-head-row{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
-.audiencia-card-radicado{font-weight:700; font-family:var(--mono); font-size:17px; color:var(--blue);}
-.audiencia-card-radicado-abrev{font-family:var(--mono); font-size:12px; color:var(--ink-soft); white-space:nowrap;}
+.audiencia-card-radicado{font-weight:700; font-size:17px; color:var(--blue);}
+.audiencia-card-radicado-abrev{font-size:12px; color:var(--ink-soft); white-space:nowrap;}
 .audiencia-card-radicado-abrev strong{font-weight:700; color:var(--ink);}
 .audiencia-tag-tipo{
-  display:inline-flex; align-items:center; padding:2px 9px; border-radius:20px; font-size:10.5px;
-  font-weight:700; background:var(--paper-dim); color:var(--navy-700); border:1px solid var(--line);
+  display:inline-flex; align-items:center; padding:3px 11px; border-radius:20px; font-size:11.5px;
+  font-weight:700; letter-spacing:.02em; text-transform:uppercase; background:var(--navy-900); color:#fff;
 }
 .audiencia-card-despacho{
   font-size:13.5px; font-weight:700; color:var(--green); margin-top:6px;
