@@ -479,20 +479,21 @@
           <div class="audiencia-card-main">
             <div class="audiencia-card-head-row">
               ${copyText(r.id, "radicado", `<span class="audiencia-card-radicado">${escapeHtml(r.radicado_proceso)}</span>`)}
+              ${radicadoAbreviado(r.radicado_proceso)}
               <button type="button" class="btn-icon-edit" style="width:22px;height:22px;" title="Consultar en la Rama Judicial" onclick="abrirModalRamaJudicial('${r.id}','${r.radicado_proceso}')">${ICONOS.buscar}</button>
               ${r.tipo_audiencia ? `<span class="audiencia-tag-tipo">${escapeHtml(r.tipo_audiencia)}</span>` : ""}
               <span class="badge copyable ${badgeClassForEstado(r.estado)}" title="Clic para copiar" onclick="copiarValor('${r.id}','estado')">${escapeHtml(r.estado)}</span>
             </div>
             <div class="audiencia-card-despacho" title="${escapeHtml(r.despacho || "Sin despacho")}">${copyText(r.id, "despacho", escapeHtml(r.despacho || "—"))}</div>
             <div class="audiencia-card-procesado">${celdaProcesado(r)}</div>
-            ${(r.abogado_titular || r.abogado_reemplaza) ? `<div class="muted" style="font-size:11.5px; margin-top:5px;">
-              ${r.abogado_titular ? "Titular: " + escapeHtml(r.abogado_titular) : ""}${r.abogado_reemplaza ? " · Reemplaza: " + escapeHtml(r.abogado_reemplaza) : ""}
-            </div>` : ""}
+            ${r.abogado_titular ? `<div class="audiencia-card-titular">Apoderado Titular: <strong>${escapeHtml(r.abogado_titular)}</strong></div>` : ""}
+            ${r.abogado_reemplaza ? `<div class="muted" style="font-size:11.5px; margin-top:2px;">Reemplaza: ${escapeHtml(r.abogado_reemplaza)}</div>` : ""}
             ${r.observaciones ? `<div class="muted truncate" style="font-size:11.5px; margin-top:5px; max-width:100%;">${copyText(r.id, "observaciones", escapeHtml(r.observaciones), { title: r.observaciones })}</div>` : ""}
+            ${infoJuzgado(r)}
           </div>
           <div class="audiencia-card-side">
-            <div class="audiencia-card-fecha">${copyText(r.id, "fecha", formatFechaLarga(r.fecha))}</div>
-            <div class="audiencia-card-hora">
+            <div class="audiencia-card-fecha">${copyText(r.id, "fecha", formatFechaCompleta(r.fecha))}</div>
+            <div class="audiencia-card-hora-grande">
               ${copyText(r.id, "hora", r.hora ? r.hora.slice(0,5) : "—")} –
               <input type="time" class="time-input-mini" value="${r.hora_fin ? r.hora_fin.slice(0,5) : ""}"
                      title="Hora en que terminó la audiencia" onchange="actualizarHoraFin('${r.id}', this.value)">
@@ -521,6 +522,55 @@
     const [y, m, d] = iso.split("-").map(Number);
     const fecha = new Date(y, m - 1, d);
     return `${DIAS_ABREV[fecha.getDay()]}, ${d} ${MESES_ABREV[m - 1]} ${y}`;
+  }
+
+  const DIAS_COMPLETOS = ["domingo","lunes","martes","miércoles","jueves","viernes","sábado"];
+  const MESES_COMPLETOS = ["enero","febrero","marzo","abril","mayo","junio","julio",
+                            "agosto","septiembre","octubre","noviembre","diciembre"];
+
+  // Ej: "sábado, 12 de septiembre de 2026" — usada en la vista de tarjetas
+  // para que la fecha resalte más que la versión abreviada de la tabla.
+  function formatFechaCompleta(iso) {
+    if (!iso) return "—";
+    const [y, m, d] = iso.split("-").map(Number);
+    const fecha = new Date(y, m - 1, d);
+    const texto = `${DIAS_COMPLETOS[fecha.getDay()]}, ${d} de ${MESES_COMPLETOS[m - 1]} de ${y}`;
+    // Solo la primera letra en mayúscula (nombres de día/mes van en minúscula
+    // en español) — a diferencia de un text-transform:capitalize en CSS, que
+    // pondría en mayúscula también las preposiciones ("De Septiembre De").
+    return texto.charAt(0).toUpperCase() + texto.slice(1);
+  }
+
+  // Radicado unificado de 23 dígitos: (juzgado-año-consecutivo), igual al
+  // que muestra Control de Términos junto al número completo.
+  function radicadoAbreviado(radicado) {
+    if (!radicado || radicado.length !== 23) return "";
+    const juzgado = radicado.slice(9, 12);
+    const anio = radicado.slice(12, 16);
+    const consecutivo = radicado.slice(16, 21);
+    return `<span class="audiencia-card-radicado-abrev">(${juzgado}-<strong>${anio}</strong>-<strong>${consecutivo}</strong>)</span>`;
+  }
+
+  // Datos del juzgado desde el directorio (despachos_directorio, cruzado en
+  // audiencias_estado por nombre normalizado — ver RESUMEN_PROYECTO.md).
+  // Presencial: juez, dirección, teléfono y correo. Virtual: solo correo.
+  // Si el despacho de la audiencia no tiene match en el directorio, no hay
+  // nada que mostrar (no todos los juzgados de Colombia están cargados).
+  function infoJuzgado(r) {
+    const esPresencial = r.modalidad === "Presencial";
+    const partes = [];
+    if (esPresencial) {
+      if (r.despacho_juez) partes.push(["Juez", "despacho_juez", r.despacho_juez]);
+      if (r.despacho_direccion) partes.push(["Dirección", "despacho_direccion", r.despacho_direccion]);
+      if (r.despacho_telefono) partes.push(["Teléfono", "despacho_telefono", r.despacho_telefono]);
+      if (r.despacho_correo) partes.push(["Correo", "despacho_correo", r.despacho_correo]);
+    } else if (r.despacho_correo) {
+      partes.push(["Correo del juzgado", "despacho_correo", r.despacho_correo]);
+    }
+    if (!partes.length) return "";
+    return `<div class="audiencia-card-juzgado-info">${partes.map(([etiqueta, campo, valor]) =>
+      `<div><span class="lbl-mini">${escapeHtml(etiqueta)}:</span>${copyText(r.id, campo, escapeHtml(valor))}</div>`
+    ).join("")}</div>`;
   }
 
   // Diferencia entre hora inicio y hora fin en minutos. null si falta algún
@@ -617,6 +667,10 @@
       case "titular": return fila.abogado_titular || "";
       case "reemplaza": return fila.abogado_reemplaza || "";
       case "observaciones": return fila.observaciones || "";
+      case "despacho_juez": return fila.despacho_juez || "";
+      case "despacho_direccion": return fila.despacho_direccion || "";
+      case "despacho_telefono": return fila.despacho_telefono || "";
+      case "despacho_correo": return fila.despacho_correo || "";
       case "duracion": {
         const dur = calcularDuracion(fila.hora, fila.hora_fin);
         return dur && !dur.invalido ? dur.texto : "";
