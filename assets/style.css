@@ -158,6 +158,20 @@ tbody tr:hover{background:var(--red-soft);}
 }
 .btn-icon-edit:hover{background:var(--gold-soft); border-color:var(--gold); color:var(--navy-950);}
 
+/* ===== Modal ===== */
+.modal-overlay{display:none; position:fixed; inset:0; background:rgba(15,26,48,0.55); z-index:200; align-items:center; justify-content:center; padding:20px;}
+.modal-overlay.show{display:flex;}
+.modal-card{background:#fff; border-radius:10px; width:100%; max-width:760px; max-height:85vh; overflow-y:auto; box-shadow:0 24px 60px rgba(0,0,0,.35);}
+.modal-head{display:flex; align-items:center; justify-content:space-between; gap:12px; padding:16px 20px; border-bottom:1px solid var(--line); position:sticky; top:0; background:#fff; z-index:1;}
+.modal-head h3{font-family:var(--serif); font-size:16px; margin:0; color:var(--navy-900);}
+.modal-close{background:none; border:none; font-size:16px; line-height:1; cursor:pointer; color:var(--ink-soft); padding:6px 8px; border-radius:6px;}
+.modal-close:hover{background:var(--paper-dim); color:var(--ink);}
+.modal-content{padding:18px 20px;}
+.ficha-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:12px 18px; font-size:12.5px; margin-bottom:14px;}
+.ficha-grid .lbl{color:var(--ink-soft); font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; font-weight:700;}
+.ficha-grid .val{font-weight:600; margin-top:2px;}
+@media (max-width:560px){ .ficha-grid{grid-template-columns:1fr;} }
+
 /* ===== Filtros ===== */
 .filters-row{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; align-items:flex-end;}
 .filters-row .field{min-width:160px; flex:1 1 160px;}

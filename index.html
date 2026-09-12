@@ -90,6 +90,16 @@
   </div>
 </main>
 
+<div class="modal-overlay" id="modalRama" onclick="if (event.target === this) cerrarModalRamaJudicial();">
+  <div class="modal-card">
+    <div class="modal-head">
+      <h3>Consulta en la Rama Judicial</h3>
+      <button type="button" class="modal-close" title="Cerrar" onclick="cerrarModalRamaJudicial()">✕</button>
+    </div>
+    <div class="modal-content" id="modalRamaContent">Cargando…</div>
+  </div>
+</div>
+
 <footer class="footer-note">Programador de Audiencias · Unidad Penal DIAN — datos en Supabase, acceso restringido al equipo</footer>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
@@ -215,7 +225,12 @@
         <td class="mono-cell">${copyText(r.id,"fecha",formatFecha(r.fecha))}</td>
         <td class="mono-cell">${copyText(r.id,"hora", r.hora ? r.hora.slice(0,5) : "—")}</td>
         <td><span class="badge copyable ${badgeClassForEstado(r.estado)}" title="Clic para copiar" onclick="copiarValor('${r.id}','estado')">${escapeHtml(r.estado)}</span></td>
-        <td class="mono-cell">${copyText(r.id,"radicado", escapeHtml(r.radicado_proceso))}</td>
+        <td class="mono-cell">
+          <span style="display:inline-flex; align-items:center; gap:4px;">
+            ${copyText(r.id,"radicado", escapeHtml(r.radicado_proceso))}
+            <button type="button" class="btn-icon-edit" style="width:22px;height:22px;font-size:11px;" title="Consultar en la Rama Judicial" onclick="abrirModalRamaJudicial('${r.radicado_proceso}')">🔎</button>
+          </span>
+        </td>
         <td>${copyText(r.id,"despacho", escapeHtml(r.despacho || "—"))}</td>
         <td>${copyText(r.id,"procesado", escapeHtml(r.nombre_procesado || r.nombre_persona_juridica || "—"))}</td>
         <td>${copyText(r.id,"tipo", escapeHtml(r.tipo_audiencia || "—"))}</td>
@@ -281,6 +296,87 @@
       .then(() => showToast("Copiado: " + texto))
       .catch(() => showToast("No se pudo copiar.", true));
   }
+
+  // ===== Consulta en vivo a la Rama Judicial (Edge Function "rama-judicial") =====
+  async function abrirModalRamaJudicial(radicado) {
+    const modal = document.getElementById("modalRama");
+    const content = document.getElementById("modalRamaContent");
+    content.innerHTML = '<p class="muted">Consultando la Rama Judicial…</p>';
+    modal.classList.add("show");
+
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/rama-judicial?radicado=${radicado}`, {
+        headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, apikey: SUPABASE_ANON_KEY },
+      });
+      const data = await res.json();
+      content.innerHTML = renderFichaRama(data);
+    } catch (e) {
+      console.error(e);
+      content.innerHTML = '<p style="color:var(--red); font-size:13px;">No se pudo conectar con la Rama Judicial. Intenta de nuevo en un momento.</p>';
+    }
+  }
+
+  function cerrarModalRamaJudicial() {
+    document.getElementById("modalRama").classList.remove("show");
+  }
+
+  function campoFicha(etiqueta, valor) {
+    return `<div><div class="lbl">${escapeHtml(etiqueta)}</div><div class="val">${escapeHtml(valor || "—")}</div></div>`;
+  }
+
+  function renderFichaRama(d) {
+    if (!d.ok) {
+      return `
+        <p style="color:var(--red); font-size:13px; font-weight:600;">⚠️ ${escapeHtml(d.mensaje)}</p>
+        <a href="https://consultaprocesos.ramajudicial.gov.co/Procesos/NumeroRadicacion" target="_blank" rel="noopener" style="font-size:12px; font-weight:600;">Buscar manualmente en el portal de la Rama Judicial →</a>
+      `;
+    }
+
+    let html = "";
+    if (d.otros_resultados > 0) {
+      html += `<p style="color:var(--amber); font-size:12px; font-weight:600; margin-bottom:10px;">⚠️ Este radicado tiene ${d.otros_resultados} coincidencia(s) adicional(es) en la Rama Judicial — se muestra la primera no privada.</p>`;
+    }
+    if (d.es_privado) {
+      html += `<p style="color:var(--amber); font-size:12px; font-weight:600; margin-bottom:10px;">🔒 Proceso marcado como privado — la Rama Judicial no expone su detalle completo.</p>`;
+    }
+
+    html += `<div class="ficha-grid">
+      ${campoFicha("Despacho", d.despacho)}
+      ${campoFicha("Departamento", d.departamento)}
+      ${campoFicha("Ponente", d.ponente)}
+      ${campoFicha("Ubicación", d.ubicacion)}
+      ${campoFicha("Tipo de proceso", d.tipo_proceso)}
+      ${campoFicha("Recurso", d.recurso)}
+      <div class="span-2" style="grid-column:1/-1;">${campoFicha("Clase / Subclase", d.subclase_proceso ? `${d.clase_proceso} / ${d.subclase_proceso}` : d.clase_proceso)}</div>
+      ${campoFicha("Fecha de radicación", formatFecha(d.fecha_radicacion))}
+      ${campoFicha("Última actuación", formatFecha(d.fecha_ultima_actuacion))}
+    </div>`;
+
+    if (d.sujetos && d.sujetos.length) {
+      html += `<div style="margin-bottom:14px;">
+        <div class="lbl" style="margin-bottom:6px;">Sujetos procesales</div>
+        <div class="table-scroll"><table><thead><tr><th>Tipo</th><th>Nombre / Razón social</th></tr></thead><tbody>
+          ${d.sujetos.map(s => `<tr><td>${escapeHtml(s.tipo)}</td><td>${escapeHtml(s.nombre)}</td></tr>`).join("")}
+        </tbody></table></div>
+      </div>`;
+    }
+
+    if (d.actuaciones && d.actuaciones.length) {
+      html += `<div>
+        <div class="lbl" style="margin-bottom:6px;">Actuaciones (${d.actuaciones.length})</div>
+        <div class="table-scroll" style="max-height:280px;"><table><thead><tr><th>Fecha</th><th>Actuación</th><th>Anotación</th></tr></thead><tbody>
+          ${d.actuaciones.map(a => `<tr><td class="mono-cell">${formatFecha(a.fecha)}</td><td>${escapeHtml(a.actuacion)}</td><td>${escapeHtml(a.anotacion || "—")}</td></tr>`).join("")}
+        </tbody></table></div>
+      </div>`;
+    }
+
+    html += `<a href="https://consultaprocesos.ramajudicial.gov.co/Procesos/NumeroRadicacion" target="_blank" rel="noopener" style="font-size:12px; font-weight:600; display:inline-block; margin-top:14px;">Ver en el portal oficial de la Rama Judicial →</a>`;
+    return html;
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") cerrarModalRamaJudicial();
+  });
 
   init();
 </script>
