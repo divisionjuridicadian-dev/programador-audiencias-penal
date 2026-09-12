@@ -15,29 +15,54 @@
   </a>
 </div>
 
-<header class="top">
-  <div class="top-row">
-    <div class="brandblock">
+<div class="app-shell">
+  <button type="button" class="btn-toggle-sidebar" aria-label="Abrir menú"
+          onclick="document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebarBackdrop').classList.toggle('show');">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"
+       onclick="document.getElementById('sidebar').classList.remove('open'); this.classList.remove('show');"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand">
       <img src="assets/logo_control_audiencias.png" alt="Control de Audiencias" class="brand-logo">
       <div class="brand-escudo-wrap"><img src="assets/escudo_colombia.png" alt="DIAN"></div>
-      <div>
-        <h1>Programador de Audiencias</h1>
-        <div class="subtitle">Unidad Penal · DIAN</div>
-      </div>
+      <h1>Programador de Audiencias</h1>
+      <div class="subtitle">Unidad Penal · DIAN</div>
     </div>
-    <nav class="top-nav">
-      <a href="index.html" class="active">Audiencias</a>
-      <a href="audiencia.html">+ Nueva audiencia</a>
-      <a href="carga-masiva.html">Carga masiva</a>
-      <a href="catalogos.html">Catálogos</a>
-      <a href="acerca-de.html">Acerca de</a>
-      <span class="user-chip" id="userChip" style="display:none;">
+
+    <nav class="sidebar-nav">
+      <a href="index.html" class="sidebar-link active">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Audiencias
+      </a>
+      <a href="audiencia.html" class="sidebar-link">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        Nueva audiencia
+      </a>
+      <a href="carga-masiva.html" class="sidebar-link">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Carga masiva
+      </a>
+      <a href="catalogos.html" class="sidebar-link">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        Catálogos
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <a href="acerca-de.html" class="sidebar-link">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        Acerca de
+      </a>
+      <div class="sidebar-user" id="userChip" style="display:none;">
         <span id="userEmail"></span>
         <button class="btn-logout" id="btnLogout">Salir</button>
-      </span>
-    </nav>
-  </div>
-</header>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main-area">
 
 <main class="page">
   <div class="card">
@@ -124,6 +149,9 @@
 </div>
 
 <footer class="footer-note">Programador de Audiencias · Unidad Penal DIAN — datos en Supabase, acceso restringido al equipo</footer>
+
+  </div>
+</div>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
 <script src="assets/supabase-client.js"></script>
