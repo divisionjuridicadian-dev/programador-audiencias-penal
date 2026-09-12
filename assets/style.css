@@ -105,8 +105,8 @@ header.top::before{
 }
 .top-row{display:flex; align-items:center; justify-content:space-between; gap:20px; flex-wrap:wrap; position:relative; z-index:1;}
 .brandblock{display:flex; align-items:center; gap:11px;}
-.tab-mark{width:26px; height:32px; background:var(--gold); border-radius:2px 5px 5px 2px; position:relative; flex:none;}
-.tab-mark::after{content:""; position:absolute; left:5px; top:6px; right:5px; height:1.5px; background:var(--navy-950); box-shadow:0 5px 0 var(--navy-950), 0 10px 0 var(--navy-950); opacity:.55;}
+.brand-logo{height:38px; width:38px; object-fit:contain; flex:none; display:block;}
+.login-head .brand-logo{margin:0 auto 10px;}
 /* El logo de la DIAN trae su propio texto oscuro, así que va sobre una
    pastilla blanca para que se lea bien contra el header navy oscuro. */
 .brand-escudo-wrap{background:#fff; border-radius:6px; padding:4px 9px; display:inline-flex; align-items:center; flex:none; line-height:0;}
@@ -193,7 +193,6 @@ textarea{resize:vertical; min-height:80px;}
 .login-wrap{min-height:100vh; display:flex; align-items:center; justify-content:center; padding:24px; background:radial-gradient(circle at 20% 20%, #1c2c4e 0%, #0f1a30 60%);}
 .login-card{width:100%; max-width:380px; background:#fff; border-radius:12px; box-shadow:0 24px 60px rgba(0,0,0,.35); overflow:hidden;}
 .login-card .login-head{background:linear-gradient(180deg,var(--navy-950),var(--navy-900)); padding:26px 26px 20px; color:#fff; text-align:center;}
-.login-card .login-head .tab-mark{margin:0 auto 12px;}
 .login-card .login-head h1{font-size:18px;}
 .login-card .login-head .subtitle{margin-top:4px;}
 .login-card .login-body{padding:24px 26px 26px; display:flex; flex-direction:column; gap:14px;}
