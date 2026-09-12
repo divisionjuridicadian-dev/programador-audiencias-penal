@@ -148,14 +148,9 @@ tbody tr:hover{background:var(--red-soft);}
 .mono-cell{font-family:var(--mono); font-variant-numeric:tabular-nums;}
 .no-results, .empty{text-align:center; padding:36px 20px; color:var(--ink-soft); font-size:13.5px;}
 
-.cell-copy{display:flex; align-items:center; justify-content:space-between; gap:8px;}
-.cell-copy .cell-text{overflow:hidden; text-overflow:ellipsis;}
-.copy-btn{
-  flex:none; width:22px; height:22px; padding:0; display:inline-flex; align-items:center; justify-content:center;
-  border:1px solid var(--line); border-radius:5px; background:#fff; color:var(--ink-soft); font-size:12px;
-  cursor:pointer; opacity:.5; line-height:1;
-}
-.copy-btn:hover{opacity:1; border-color:var(--navy-700); color:var(--navy-700);}
+.copyable{cursor:pointer; border-radius:4px; margin:-3px -5px; padding:3px 5px; display:inline-block;}
+.copyable:hover{background:var(--gold-soft);}
+.badge.copyable:hover{filter:brightness(0.95);}
 .col-actions{text-align:center; white-space:nowrap;}
 .btn-icon-edit{
   flex:none; width:28px; height:28px; padding:0; display:inline-flex; align-items:center; justify-content:center;

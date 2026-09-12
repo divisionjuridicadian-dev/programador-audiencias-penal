@@ -183,15 +183,15 @@
 
     body.innerHTML = filas.map(r => `
       <tr>
-        <td class="mono-cell"><span class="cell-copy"><span class="cell-text">${formatFecha(r.fecha)}</span>${copyBtn(r.id,"fecha")}</span></td>
-        <td class="mono-cell"><span class="cell-copy"><span class="cell-text">${r.hora ? r.hora.slice(0,5) : "—"}</span>${copyBtn(r.id,"hora")}</span></td>
-        <td><span class="cell-copy"><span class="badge ${badgeClassForEstado(r.estado)}">${escapeHtml(r.estado)}</span>${copyBtn(r.id,"estado")}</span></td>
-        <td class="mono-cell"><span class="cell-copy"><span class="cell-text">${escapeHtml(r.radicado_proceso)}</span>${copyBtn(r.id,"radicado")}</span></td>
-        <td><span class="cell-copy"><span class="cell-text">${escapeHtml(r.despacho || "—")}</span>${copyBtn(r.id,"despacho")}</span></td>
-        <td><span class="cell-copy"><span class="cell-text">${escapeHtml(r.nombre_procesado || r.nombre_persona_juridica || "—")}</span>${copyBtn(r.id,"procesado")}</span></td>
-        <td><span class="cell-copy"><span class="cell-text">${escapeHtml(r.tipo_audiencia || "—")}</span>${copyBtn(r.id,"tipo")}</span></td>
-        <td><span class="cell-copy"><span class="cell-text">${escapeHtml(r.abogado_titular || "—")}</span>${copyBtn(r.id,"titular")}</span></td>
-        <td><span class="cell-copy"><span class="cell-text">${escapeHtml(r.abogado_reemplaza || "—")}</span>${copyBtn(r.id,"reemplaza")}</span></td>
+        <td class="mono-cell">${copyText(r.id,"fecha",formatFecha(r.fecha))}</td>
+        <td class="mono-cell">${copyText(r.id,"hora", r.hora ? r.hora.slice(0,5) : "—")}</td>
+        <td><span class="badge copyable ${badgeClassForEstado(r.estado)}" title="Clic para copiar" onclick="copiarValor('${r.id}','estado')">${escapeHtml(r.estado)}</span></td>
+        <td class="mono-cell">${copyText(r.id,"radicado", escapeHtml(r.radicado_proceso))}</td>
+        <td>${copyText(r.id,"despacho", escapeHtml(r.despacho || "—"))}</td>
+        <td>${copyText(r.id,"procesado", escapeHtml(r.nombre_procesado || r.nombre_persona_juridica || "—"))}</td>
+        <td>${copyText(r.id,"tipo", escapeHtml(r.tipo_audiencia || "—"))}</td>
+        <td>${copyText(r.id,"titular", escapeHtml(r.abogado_titular || "—"))}</td>
+        <td>${copyText(r.id,"reemplaza", escapeHtml(r.abogado_reemplaza || "—"))}</td>
         <td class="col-actions">
           <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">✏️</button>
         </td>
@@ -199,8 +199,8 @@
     `).join("");
   }
 
-  function copyBtn(id, campo) {
-    return `<button class="copy-btn" type="button" title="Copiar" onclick="copiarValor('${id}','${campo}')">⧉</button>`;
+  function copyText(id, campo, texto) {
+    return `<span class="copyable" title="Clic para copiar" onclick="copiarValor('${id}','${campo}')">${texto}</span>`;
   }
 
   function valorCampo(fila, campo) {
