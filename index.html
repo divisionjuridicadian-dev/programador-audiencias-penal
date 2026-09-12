@@ -230,7 +230,7 @@
         <td class="mono-cell">
           <span style="display:inline-flex; align-items:center; gap:4px;">
             ${copyText(r.id,"radicado", escapeHtml(r.radicado_proceso))}
-            <button type="button" class="btn-icon-edit" style="width:22px;height:22px;font-size:11px;" title="Consultar en la Rama Judicial" onclick="abrirModalRamaJudicial('${r.radicado_proceso}')">🔎</button>
+            <button type="button" class="btn-icon-edit" style="width:22px;height:22px;font-size:11px;" title="Consultar en la Rama Judicial" onclick="abrirModalRamaJudicial('${r.id}','${r.radicado_proceso}')">🔎</button>
           </span>
         </td>
         <td>${copyText(r.id,"despacho", escapeHtml(r.despacho || "—"))}</td>
@@ -329,7 +329,13 @@
   }
 
   // ===== Consulta en vivo a la Rama Judicial (Edge Function "rama-judicial") =====
-  async function abrirModalRamaJudicial(radicado) {
+  let fichaRamaAudienciaId = null;
+  let fichaRamaData = null;
+
+  async function abrirModalRamaJudicial(audienciaId, radicado) {
+    fichaRamaAudienciaId = audienciaId;
+    fichaRamaData = null;
+
     const modal = document.getElementById("modalRama");
     const content = document.getElementById("modalRamaContent");
     content.innerHTML = '<p class="muted">Consultando la Rama Judicial…</p>';
@@ -340,6 +346,7 @@
         headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, apikey: SUPABASE_ANON_KEY },
       });
       const data = await res.json();
+      fichaRamaData = data;
       content.innerHTML = renderFichaRama(data);
     } catch (e) {
       console.error(e);
@@ -351,8 +358,57 @@
     document.getElementById("modalRama").classList.remove("show");
   }
 
-  function campoFicha(etiqueta, valor) {
-    return `<div><div class="lbl">${escapeHtml(etiqueta)}</div><div class="val">${escapeHtml(valor || "—")}</div></div>`;
+  function campoFicha(etiqueta, valor, accionHtml) {
+    return `<div><div class="lbl">${escapeHtml(etiqueta)}</div>
+      <div class="val" style="display:flex; align-items:center; gap:6px; flex-wrap:wrap;">
+        <span>${escapeHtml(valor || "—")}</span>${accionHtml || ""}
+      </div>
+    </div>`;
+  }
+
+  // Sobrescribe el despacho de la audiencia con el nombre completo que
+  // devolvió la Rama Judicial (la app hoy solo guarda lo que el abogado
+  // escribe a mano ahí, ver sección 4 del resumen del proyecto).
+  async function usarDespachoRama() {
+    if (!fichaRamaData || !fichaRamaData.despacho || !fichaRamaAudienciaId) return;
+    const despacho = fichaRamaData.despacho;
+    if (!confirm(`¿Reemplazar el despacho de esta audiencia por:\n\n"${despacho}"?`)) return;
+
+    const { error } = await db.from("audiencias").update({ despacho }).eq("id", fichaRamaAudienciaId);
+    if (error) {
+      console.error(error);
+      showToast("No se pudo actualizar el despacho.", true);
+      return;
+    }
+    const fila = todasLasFilas.find(r => r.id === fichaRamaAudienciaId);
+    if (fila) fila.despacho = despacho;
+    renderTabla();
+    showToast("Despacho actualizado en la audiencia.");
+  }
+
+  // Toma todos los sujetos con tipo "Demandado" de la ficha y los junta en
+  // el nombre del procesado de la audiencia, separados por " / ".
+  async function usarDemandadosRama() {
+    if (!fichaRamaData || !fichaRamaAudienciaId) return;
+    const demandados = (fichaRamaData.sujetos || [])
+      .filter(s => (s.tipo || "").trim().toLowerCase() === "demandado")
+      .map(s => s.nombre)
+      .filter(Boolean);
+    if (!demandados.length) return;
+
+    const nombreProcesado = demandados.join(" / ");
+    if (!confirm(`¿Establecer el nombre del procesado de esta audiencia como:\n\n"${nombreProcesado}"?`)) return;
+
+    const { error } = await db.from("audiencias").update({ nombre_procesado: nombreProcesado }).eq("id", fichaRamaAudienciaId);
+    if (error) {
+      console.error(error);
+      showToast("No se pudo actualizar el nombre del procesado.", true);
+      return;
+    }
+    const fila = todasLasFilas.find(r => r.id === fichaRamaAudienciaId);
+    if (fila) fila.nombre_procesado = nombreProcesado;
+    renderTabla();
+    showToast("Nombre del procesado actualizado.");
   }
 
   function renderFichaRama(d) {
@@ -371,8 +427,12 @@
       html += `<p style="color:var(--amber); font-size:12px; font-weight:600; margin-bottom:10px;">🔒 Proceso marcado como privado — la Rama Judicial no expone su detalle completo.</p>`;
     }
 
+    const btnUsarDespacho = d.despacho
+      ? `<button type="button" class="btn-icon-edit" style="width:22px;height:22px;font-size:11px;" title="Guardar este despacho en la audiencia (reemplaza el actual)" onclick="usarDespachoRama()">📥</button>`
+      : "";
+
     html += `<div class="ficha-grid">
-      ${campoFicha("Despacho", d.despacho)}
+      ${campoFicha("Despacho", d.despacho, btnUsarDespacho)}
       ${campoFicha("Departamento", d.departamento)}
       ${campoFicha("Ponente", d.ponente)}
       ${campoFicha("Ubicación", d.ubicacion)}
@@ -386,8 +446,15 @@
     if (d.sujetos && d.sujetos.length) {
       html += `<div style="margin-bottom:14px;">
         <div class="lbl" style="margin-bottom:6px;">Sujetos procesales</div>
+        <p class="muted" style="font-size:11px; margin:0 0 6px;">Clic en "Demandado" para llevar ese nombre (o todos, si hay varios) al campo Nombre del procesado.</p>
         <div class="table-scroll"><table><thead><tr><th>Tipo</th><th>Nombre / Razón social</th></tr></thead><tbody>
-          ${d.sujetos.map(s => `<tr><td>${escapeHtml(s.tipo)}</td><td>${escapeHtml(s.nombre)}</td></tr>`).join("")}
+          ${d.sujetos.map(s => {
+            const esDemandado = (s.tipo || "").trim().toLowerCase() === "demandado";
+            const tipoCelda = esDemandado
+              ? `<span class="copyable" style="font-weight:700; color:var(--navy-700);" title="Clic para usar como nombre del procesado" onclick="usarDemandadosRama()">${escapeHtml(s.tipo)}</span>`
+              : escapeHtml(s.tipo);
+            return `<tr><td>${tipoCelda}</td><td>${escapeHtml(s.nombre)}</td></tr>`;
+          }).join("")}
         </tbody></table></div>
       </div>`;
     }
