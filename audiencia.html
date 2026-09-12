@@ -86,7 +86,6 @@
         <h2 id="formTitle">Nueva audiencia</h2>
         <p id="formSub">Todos los campos con radicado son obligatorios.</p>
       </div>
-      <button class="btn-danger" id="btnEliminar" type="button" style="display:none;"></button>
     </div>
     <div class="card-body">
       <form id="audienciaForm">
@@ -195,6 +194,7 @@
         </div>
 
         <div class="form-actions">
+          <button class="btn-danger" id="btnEliminar" type="button" style="display:none; margin-right:auto;"></button>
           <a href="index.html" class="btn btn-ghost">Cancelar</a>
           <button type="submit" class="btn-gold" id="btnGuardar">Guardar audiencia</button>
         </div>
@@ -462,7 +462,7 @@
       }
       const nombreProcesadoInput = document.getElementById("nombreProcesado");
       const partes = (data.sujetos || [])
-        .filter(s => ["demandado", "demandante"].includes((s.tipo || "").trim().toLowerCase()))
+        .filter(s => esTipoProcesado(s.tipo))
         .map(s => s.nombre).filter(Boolean);
       if (partes.length && !nombreProcesadoInput.value.trim()) {
         nombreProcesadoInput.value = partes.join(" / ");

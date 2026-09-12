@@ -83,6 +83,20 @@ const RESULTADOS_CONCLUIDOS = [
   "se realizo", "se realizó", "casacion", "casación",
 ];
 
+// La Rama Judicial no usa un único término fijo para el sujeto que va al
+// campo "Nombre del procesado": según el tipo de proceso puede venir como
+// "Demandado", o como un rótulo compuesto tipo "Demandado/Indiciado/Causante".
+// Por eso se busca coincidencia parcial contra varios términos en vez de
+// exigir una igualdad exacta con uno solo. "Demandante" queda afuera a
+// propósito: en procesos de la DIAN, la propia DIAN suele figurar como
+// demandante, así que incluirla mezclaría a la entidad con el procesado.
+const PALABRAS_TIPO_PROCESADO = ["demandado", "indiciado", "procesado", "causante", "acusado", "imputado"];
+
+function esTipoProcesado(tipo) {
+  const t = (tipo || "").toLowerCase();
+  return PALABRAS_TIPO_PROCESADO.some(p => t.includes(p));
+}
+
 function badgeClassForEstado(estado) {
   const e = (estado || "").toLowerCase();
   if (e === "audiencia hoy") return "badge-hoy";
