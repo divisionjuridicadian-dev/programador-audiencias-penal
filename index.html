@@ -97,6 +97,9 @@
             <button type="button" data-periodo="manana">Mañana</button>
             <button type="button" data-periodo="semana">Esta semana</button>
             <button type="button" data-periodo="proxima_semana">Próxima semana</button>
+            <button type="button" data-periodo="mes">Este mes</button>
+            <button type="button" data-periodo="anio">Este año</button>
+            <button type="button" data-periodo="todos">Todos</button>
           </div>
         </div>
         <div class="field">
@@ -385,6 +388,19 @@
     manana: () => { const m = sumarDias(hoyComoDate(), 1); return [fechaISO(m), fechaISO(m)]; },
     semana: () => { const l = lunesDeLaSemana(hoyComoDate()); return [fechaISO(l), fechaISO(sumarDias(l, 6))]; },
     proxima_semana: () => { const l = sumarDias(lunesDeLaSemana(hoyComoDate()), 7); return [fechaISO(l), fechaISO(sumarDias(l, 6))]; },
+    mes: () => {
+      const h = hoyComoDate();
+      const primero = new Date(h.getFullYear(), h.getMonth(), 1);
+      const ultimo = new Date(h.getFullYear(), h.getMonth() + 1, 0);
+      return [fechaISO(primero), fechaISO(ultimo)];
+    },
+    anio: () => {
+      const h = hoyComoDate();
+      return [fechaISO(new Date(h.getFullYear(), 0, 1)), fechaISO(new Date(h.getFullYear(), 11, 31))];
+    },
+    // Sin límite de fecha: incluye anteriores y actuales/futuras (a diferencia
+    // del resto de la app, que por defecto solo muestra de hoy en adelante).
+    todos: () => ["", ""],
   };
 
   function aplicarPeriodo(clave, btn) {
@@ -424,7 +440,12 @@
 
   async function cargarDatos() {
     document.getElementById("scopeText").textContent = "Cargando…";
-    const { data, error } = await db.from("audiencias_estado").select("*").order("fecha", { ascending: true });
+    // Orden por fecha (la más próxima primero) y, dentro del mismo día, por
+    // hora — la más reciente primero (nullsFirst:false para que las
+    // audiencias sin hora registrada queden al final, no arriba).
+    const { data, error } = await db.from("audiencias_estado").select("*")
+      .order("fecha", { ascending: true })
+      .order("hora", { ascending: false, nullsFirst: false });
     if (error) {
       showToast("No se pudieron cargar las audiencias.", true);
       console.error(error);
@@ -544,6 +565,7 @@
               <span class="badge copyable ${badgeClassForEstado(r.estado)}" title="Clic para copiar" onclick="copiarValor('${r.id}','estado')">${escapeHtml(r.estado)}</span>
             </div>
             <div class="audiencia-card-despacho" title="${escapeHtml(r.despacho || "Sin despacho")}">${copyText(r.id, "despacho", escapeHtml(r.despacho || "—"))}</div>
+            ${correoJuzgado(r)}
             <div class="audiencia-card-procesado">${celdaProcesado(r, { pjGrande: true })}</div>
             ${r.abogado_titular ? `<div class="audiencia-card-titular">Apoderado Titular: <strong>${escapeHtml(r.abogado_titular)}</strong></div>` : ""}
             ${r.abogado_reemplaza ? `<div class="muted" style="font-size:11.5px; margin-top:2px;">Reemplaza: ${escapeHtml(r.abogado_reemplaza)}</div>` : ""}
@@ -610,22 +632,27 @@
     return `<span class="audiencia-card-radicado-abrev">(${juzgado}-<strong>${anio}</strong>-<strong>${consecutivo}</strong>)</span>`;
   }
 
-  // Datos del juzgado desde el directorio (despachos_directorio, cruzado en
-  // audiencias_estado por nombre normalizado — ver RESUMEN_PROYECTO.md).
-  // Presencial: juez, dirección, teléfono y correo. Virtual: solo correo.
-  // Si el despacho de la audiencia no tiene match en el directorio, no hay
-  // nada que mostrar (no todos los juzgados de Colombia están cargados).
+  // Correo del juzgado (despachos_directorio, cruzado en audiencias_estado
+  // por nombre normalizado): va justo debajo del nombre del despacho, sin
+  // caja ni fondo — aplica igual en Virtual y en Presencial, porque el
+  // correo del juzgado no depende de la modalidad de la audiencia.
+  function correoJuzgado(r) {
+    if (!r.despacho_correo) return "";
+    return `<div class="audiencia-card-correo-juzgado">
+      <span class="lbl-mini">Correo del juzgado:</span>${copyText(r.id, "despacho_correo", escapeHtml(r.despacho_correo))}
+    </div>`;
+  }
+
+  // Datos adicionales del juzgado, solo para Presencial (juez, dirección,
+  // teléfono) — el correo ya se muestra aparte (ver correoJuzgado). Si el
+  // despacho de la audiencia no tiene match en el directorio, no hay nada
+  // que mostrar (no todos los juzgados de Colombia están cargados).
   function infoJuzgado(r) {
-    const esPresencial = r.modalidad === "Presencial";
+    if (r.modalidad !== "Presencial") return "";
     const partes = [];
-    if (esPresencial) {
-      if (r.despacho_juez) partes.push(["Juez", "despacho_juez", r.despacho_juez]);
-      if (r.despacho_direccion) partes.push(["Dirección", "despacho_direccion", r.despacho_direccion]);
-      if (r.despacho_telefono) partes.push(["Teléfono", "despacho_telefono", r.despacho_telefono]);
-      if (r.despacho_correo) partes.push(["Correo", "despacho_correo", r.despacho_correo]);
-    } else if (r.despacho_correo) {
-      partes.push(["Correo del juzgado", "despacho_correo", r.despacho_correo]);
-    }
+    if (r.despacho_juez) partes.push(["Juez", "despacho_juez", r.despacho_juez]);
+    if (r.despacho_direccion) partes.push(["Dirección", "despacho_direccion", r.despacho_direccion]);
+    if (r.despacho_telefono) partes.push(["Teléfono", "despacho_telefono", r.despacho_telefono]);
     if (!partes.length) return "";
     return `<div class="audiencia-card-juzgado-info">${partes.map(([etiqueta, campo, valor]) =>
       `<div><span class="lbl-mini">${escapeHtml(etiqueta)}:</span>${copyText(r.id, campo, escapeHtml(valor))}</div>`
