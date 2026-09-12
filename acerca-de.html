@@ -1,0 +1,99 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Acerca de · Programador de Audiencias</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+
+<div class="govco-topbar">
+  <a href="https://www.gov.co/" target="_blank" rel="noopener" aria-label="Portal del Estado Colombiano - GOV.CO">
+    <img src="assets/logo_govco.svg" alt="GOV.CO">
+  </a>
+</div>
+
+<header class="top">
+  <div class="top-row">
+    <div class="brandblock">
+      <div class="tab-mark"></div>
+      <div class="brand-escudo-wrap"><img src="assets/escudo_colombia.png" alt="DIAN"></div>
+      <div>
+        <h1>Programador de Audiencias</h1>
+        <div class="subtitle">Unidad Penal · DIAN</div>
+      </div>
+    </div>
+    <nav class="top-nav">
+      <a href="index.html">Audiencias</a>
+      <a href="audiencia.html">+ Nueva audiencia</a>
+      <a href="carga-masiva.html">Carga masiva</a>
+      <a href="catalogos.html">Catálogos</a>
+      <a href="acerca-de.html" class="active">Acerca de</a>
+      <span class="user-chip" id="userChip" style="display:none;">
+        <span id="userEmail"></span>
+        <button class="btn-logout" id="btnLogout">Salir</button>
+      </span>
+    </nav>
+  </div>
+</header>
+
+<main class="page narrow">
+  <div class="card">
+    <div class="card-body" style="padding:36px 32px;">
+      <div style="display:flex; justify-content:center; margin-bottom:16px;">
+        <img src="assets/logo_control_audiencias.png" alt="Logo Control de Audiencias DIAN" style="height:130px; width:auto;">
+      </div>
+
+      <h2 style="text-align:center; font-size:21px; margin:0;">Control de Audiencias DIAN</h2>
+      <p style="text-align:center; font-size:13px; font-weight:600; color:var(--ink-soft); margin:4px 0 0;">
+        Gestión eficiente de audiencias judiciales
+      </p>
+      <p style="text-align:center; font-size:11px; font-weight:700; color:var(--ink-soft); margin:10px 0 0; letter-spacing:.02em;">
+        Versión 2.1.0<br>Actualizado el 12 de septiembre de 2026
+      </p>
+
+      <p style="font-size:13.5px; text-align:justify; margin:22px 0 0; line-height:1.55;">
+        Control de Audiencias DIAN es una herramienta diseñada para optimizar la programación y el
+        seguimiento de las audiencias judiciales asignadas a los abogados apoderados de la Unidad Penal
+        de la División Jurídica de la DIAN.
+      </p>
+      <p style="font-size:13.5px; text-align:justify; margin:12px 0 0; line-height:1.55;">
+        Permite organizar, consultar y controlar en un solo lugar las audiencias programadas, además de
+        facilitar el acceso y el seguimiento a las actuaciones judiciales asociadas a cada proceso.
+      </p>
+      <p style="font-size:13.5px; text-align:justify; margin:12px 0 0; line-height:1.55;">
+        La plataforma centraliza la información clave en una interfaz clara e intuitiva, fortaleciendo el
+        control, la trazabilidad y la toma de decisiones en la gestión de las audiencias del equipo.
+      </p>
+
+      <div style="text-align:center; font-size:13px; margin-top:26px; padding-top:20px; border-top:1px solid var(--line);">
+        <p style="font-weight:700; margin:0 0 6px;">Desarrollado por los abogados</p>
+        <p style="margin:0;">José Milagros Echeverry Sepúlveda</p>
+        <p style="margin:0;">Carlos Enrique Echeverry Sepúlveda</p>
+      </div>
+
+      <div style="text-align:center; font-size:13px; margin-top:20px;">
+        <p style="font-weight:700; margin:0 0 6px;">Contacto</p>
+        <p style="margin:0;"><a href="mailto:joseecheve@gmail.com">joseecheve@gmail.com</a></p>
+        <p style="margin:0;"><a href="mailto:caenecse@gmail.com">caenecse@gmail.com</a></p>
+        <p class="muted" style="margin:8px 0 0;">Teléfonos: 323 355 4047 · 310 416 7500</p>
+      </div>
+    </div>
+  </div>
+</main>
+
+<footer class="footer-note">Programador de Audiencias · Unidad Penal DIAN — datos en Supabase, acceso restringido al equipo</footer>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="assets/supabase-client.js"></script>
+<script>
+  async function init() {
+    const session = await requireSession();
+    if (!session) return;
+    wireUserChip(session);
+  }
+  init();
+</script>
+</body>
+</html>
