@@ -1086,6 +1086,35 @@
     showToast("Nombre del procesado actualizado.");
   }
 
+  // Doble clic en una fila de "Actuaciones" (ficha de la Rama Judicial):
+  // la agrega como novedad de la audiencia — Novedad = nombre de la
+  // actuación, Fecha = fecha de la actuación, Observación = anotación.
+  async function agregarActuacionComoNovedad(indice) {
+    if (!fichaRamaData || !fichaRamaAudienciaId) return;
+    const a = (fichaRamaData.actuaciones || [])[indice];
+    if (!a) return;
+
+    const ok = await confirmarAccion(
+      `¿Agregar esta actuación como novedad de la audiencia?\n\n"${a.actuacion}" — ${formatFecha(a.fecha)}`,
+      { titulo: "Agregar como novedad", textoConfirmar: "Agregar", peligro: false });
+    if (!ok) return;
+
+    const { error } = await db.from("novedades").insert({
+      audiencia_id: fichaRamaAudienciaId,
+      novedad: a.actuacion,
+      fecha: a.fecha,
+      observacion: a.anotacion || null,
+    });
+    if (error) {
+      console.error(error);
+      showToast("No se pudo agregar la novedad.", true);
+      return;
+    }
+    showToast("Novedad agregada desde la Rama Judicial.");
+    await cargarNovedades();
+    renderTabla();
+  }
+
   function renderFichaRama(d) {
     if (!d.ok) {
       return `
@@ -1137,8 +1166,9 @@
     if (d.actuaciones && d.actuaciones.length) {
       html += `<div>
         <div class="lbl" style="margin-bottom:6px;">Actuaciones (${d.actuaciones.length})</div>
+        <p class="muted" style="font-size:11px; margin:0 0 6px;">Doble clic en una fila para agregarla como novedad de esta audiencia.</p>
         <div class="table-scroll" style="max-height:280px;"><table><thead><tr><th>Fecha</th><th>Actuación</th><th>Anotación</th></tr></thead><tbody>
-          ${d.actuaciones.map(a => `<tr><td class="mono-cell">${formatFecha(a.fecha)}</td><td>${escapeHtml(a.actuacion)}</td><td>${escapeHtml(a.anotacion || "—")}</td></tr>`).join("")}
+          ${d.actuaciones.map((a, i) => `<tr style="cursor:pointer;" title="Doble clic para agregar como novedad" ondblclick="agregarActuacionComoNovedad(${i})"><td class="mono-cell">${formatFecha(a.fecha)}</td><td>${escapeHtml(a.actuacion)}</td><td>${escapeHtml(a.anotacion || "—")}</td></tr>`).join("")}
         </tbody></table></div>
       </div>`;
     }
