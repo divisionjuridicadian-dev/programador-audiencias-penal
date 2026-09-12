@@ -12,7 +12,11 @@
   .cat-list li{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 9px; border:1px solid var(--line); border-radius:6px; font-size:13px;}
   .cat-add{display:flex; gap:8px; margin-top:12px;}
   .cat-add input{flex:1;}
-  .link-danger{font-size:11px; color:var(--red); cursor:pointer; background:none; border:none; padding:2px 4px;}
+  .link-danger{
+    color:var(--red); cursor:pointer; background:none; border:none; border-radius:6px;
+    padding:6px 7px; display:inline-flex; align-items:center; justify-content:center; flex:none;
+  }
+  .link-danger:hover{background:var(--red-soft);}
   .despachos-card{margin-top:16px;}
   .despachos-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; max-height:480px; overflow-y:auto;}
   .despachos-list li{padding:8px 10px; border:1px solid var(--line); border-radius:6px; font-size:12.5px;}
@@ -141,7 +145,10 @@
       <li>
         <div class="desp-nombre">${escapeHtml(d.nombre)}</div>
         <div class="desp-meta">${escapeHtml(d.codigo)} · ${escapeHtml(d.municipio)}${d.circuito && d.circuito !== d.municipio ? " · circuito " + escapeHtml(d.circuito) : ""}</div>
-      </li>`).join("") || '<li class="muted">Sin resultados.</li>';
+      </li>`).join("") || `<li class="muted" style="text-align:center; padding:20px 10px;">
+        Sin resultados para "${escapeHtml(q)}".
+        <div style="margin-top:10px;"><button class="btn-ghost" type="button" onclick="document.getElementById('buscarDespacho').value=''; renderDespachos();">Limpiar búsqueda</button></div>
+      </li>`;
     if (!q && todosLosDespachos.length > 50) {
       ul.insertAdjacentHTML("beforeend", `<li class="muted">Escribe para buscar entre los ${todosLosDespachos.length} juzgados…</li>`);
     }
@@ -153,7 +160,7 @@
     ul.innerHTML = items.map(it => `
       <li>
         <span>${escapeHtml(it.nombre)}</span>
-        <button class="link-danger" onclick="desactivar('${tabla}','${it.id}','${elId}')">quitar</button>
+        <button class="link-danger" title="Quitar de la lista" onclick="desactivar('${tabla}','${it.id}','${elId}')">${ICONOS.papelera}</button>
       </li>`).join("") || '<li class="muted">Sin elementos.</li>';
   }
 
@@ -172,7 +179,10 @@
   }
 
   async function desactivar(tabla, id, elId) {
-    if (!confirm("¿Quitar este elemento del catálogo? Las audiencias ya guardadas con este valor no se ven afectadas.")) return;
+    const ok = await confirmarAccion(
+      "¿Quitar este elemento del catálogo? Las audiencias ya guardadas con este valor no se ven afectadas.",
+      { titulo: "Quitar del catálogo", textoConfirmar: "Quitar" });
+    if (!ok) return;
     const { error } = await db.from(tabla).update({ activo: false }).eq("id", id);
     if (error) { showToast("No se pudo quitar.", true); return; }
     cargarLista(tabla, elId);

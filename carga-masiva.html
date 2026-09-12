@@ -16,6 +16,18 @@
   .steps{display:flex; gap:8px; margin-bottom:16px; flex-wrap:wrap;}
   .step{font-size:11.5px; font-weight:700; color:var(--ink-soft); padding:5px 10px; border-radius:20px; background:var(--paper-dim);}
   .step.active{background:var(--navy-900); color:#fff;}
+
+  .dropzone{
+    border:2px dashed var(--line); border-radius:12px; padding:40px 20px; text-align:center;
+    cursor:pointer; transition:border-color .15s, background .15s; background:var(--paper-dim);
+  }
+  .dropzone:hover, .dropzone.dragover{border-color:var(--gold); background:var(--gold-soft);}
+  .dropzone svg{color:var(--ink-soft); margin-bottom:10px;}
+  .dropzone .dz-titulo{font-weight:700; font-size:14px; color:var(--navy-900); margin-bottom:4px;}
+  .dropzone .dz-sub{font-size:12px; color:var(--ink-soft);}
+
+  /* Flash breve de "guardado" al corregir una celda en la revisión. */
+  .cell-input.recien-editado{background:var(--green-soft); border-color:var(--green); transition:background 1.2s ease, border-color 1.2s ease;}
 </style>
 </head>
 <body>
@@ -59,7 +71,12 @@
 
       <div id="panelUpload" class="stack">
         <p class="muted">Sube el archivo Excel con la hoja de audiencias (columnas como RADICADO_PROCESO, FECHA, HORA, DESPACHO, TIPO_AUDIENCIA, etc.). Se detecta la hoja automáticamente.</p>
-        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv">
+        <div class="dropzone" id="dropzone" tabindex="0">
+          <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z"/><polyline points="14 2 14 8 20 8"/><line x1="12" y1="18" x2="12" y2="12"/><polyline points="9 15 12 12 15 15"/></svg>
+          <div class="dz-titulo">Arrastra aquí el archivo Excel</div>
+          <div class="dz-sub">o hacé clic para elegirlo — .xlsx, .xls o .csv</div>
+        </div>
+        <input type="file" id="fileInput" accept=".xlsx,.xls,.csv" style="display:none;">
       </div>
 
       <div id="panelReview" style="display:none;">
@@ -119,8 +136,30 @@
     document.getElementById("fileInput").addEventListener("change", (e) => {
       if (e.target.files[0]) procesarArchivo(e.target.files[0]);
     });
+    wireDropzone();
     document.getElementById("btnCancelarCarga").addEventListener("click", () => window.location.reload());
     document.getElementById("btnImportar").addEventListener("click", importar);
+  }
+
+  // Zona de arrastrar y soltar — el <input type="file"> sigue existiendo
+  // (oculto) para el flujo de clic-y-elegir, la dropzone solo dispara clic
+  // sobre él o procesa el archivo soltado directamente.
+  function wireDropzone() {
+    const zona = document.getElementById("dropzone");
+    const input = document.getElementById("fileInput");
+    zona.addEventListener("click", () => input.click());
+    zona.addEventListener("keydown", (e) => { if (e.key === "Enter" || e.key === " ") input.click(); });
+    ["dragenter", "dragover"].forEach(evt => zona.addEventListener(evt, (e) => {
+      e.preventDefault();
+      zona.classList.add("dragover");
+    }));
+    ["dragleave", "dragend"].forEach(evt => zona.addEventListener(evt, () => zona.classList.remove("dragover")));
+    zona.addEventListener("drop", (e) => {
+      e.preventDefault();
+      zona.classList.remove("dragover");
+      const archivo = e.dataTransfer.files && e.dataTransfer.files[0];
+      if (archivo) procesarArchivo(archivo);
+    });
   }
 
   function normalize(s) {
@@ -243,17 +282,21 @@
     renderPreview();
   }
 
-  function renderPreview() {
-    const body = document.getElementById("previewBody");
+  function actualizarResumen() {
     const validas = filas.filter(filaValida).length;
     document.getElementById("resumenValidacion").textContent =
       `${validas} de ${filas.length} filas listas para importar`;
+  }
+
+  function renderPreview() {
+    const body = document.getElementById("previewBody");
+    actualizarResumen();
 
     body.innerHTML = filas.map((f, i) => {
       const ok = filaValida(f);
       return `
-      <tr class="${ok ? "" : "row-error"}">
-        <td>${ok ? '<span class="status-ok">OK</span>' : '<span class="status-error">Corregir</span>'}</td>
+      <tr class="${ok ? "" : "row-error"}" data-fila="${i}">
+        <td class="celda-estado">${ok ? '<span class="status-ok">OK</span>' : '<span class="status-error">Corregir</span>'}</td>
         <td><input class="cell-input ${/^[0-9]{23}$/.test(f.radicado) ? "" : "invalid"}" data-i="${i}" data-campo="radicado" value="${escapeHtml(f.radicado)}" maxlength="23"></td>
         <td><input class="cell-input ${/^\d{4}-\d{2}-\d{2}$/.test(f.fecha) ? "" : "invalid"}" data-i="${i}" data-campo="fecha" type="date" value="${f.fecha}"></td>
         <td><input class="cell-input" data-i="${i}" data-campo="hora" type="time" value="${f.hora}"></td>
@@ -270,9 +313,35 @@
         const i = Number(e.target.dataset.i);
         const campo = e.target.dataset.campo;
         filas[i][campo] = campo === "radicado" ? e.target.value.replace(/\D/g,"").slice(0,23) : e.target.value;
-        renderPreview();
+        // El radicado se sanea (solo dígitos) — refleja eso en el propio
+        // input sin reconstruir la tabla, para no perderle el foco.
+        if (campo === "radicado" && e.target.value !== filas[i][campo]) e.target.value = filas[i][campo];
+        actualizarFilaEnVivo(i);
+        destellarGuardado(e.target);
       });
     });
+  }
+
+  // Actualiza solo el estado (OK/Corregir, borde inválido) de la fila que se
+  // está editando, sin tocar el resto de inputs — reconstruir toda la tabla
+  // en cada tecla le quitaba el foco al campo apenas se escribía un carácter.
+  function actualizarFilaEnVivo(i) {
+    const f = filas[i];
+    const fila = document.querySelector(`tr[data-fila="${i}"]`);
+    if (!fila) return;
+    const ok = filaValida(f);
+    fila.classList.toggle("row-error", !ok);
+    fila.querySelector(".celda-estado").innerHTML = ok ? '<span class="status-ok">OK</span>' : '<span class="status-error">Corregir</span>';
+    fila.querySelector('[data-campo="radicado"]').classList.toggle("invalid", !/^[0-9]{23}$/.test(f.radicado));
+    fila.querySelector('[data-campo="fecha"]').classList.toggle("invalid", !/^\d{4}-\d{2}-\d{2}$/.test(f.fecha));
+    actualizarResumen();
+  }
+
+  // Flash breve de "guardado" en el campo que se acaba de corregir.
+  function destellarGuardado(input) {
+    input.classList.add("recien-editado");
+    clearTimeout(input._destelloTimeout);
+    input._destelloTimeout = setTimeout(() => input.classList.remove("recien-editado"), 900);
   }
 
   async function resolverCatalogo(tabla, cache, nombre) {

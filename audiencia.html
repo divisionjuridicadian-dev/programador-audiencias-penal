@@ -37,87 +37,107 @@
         <h2 id="formTitle">Nueva audiencia</h2>
         <p id="formSub">Todos los campos con radicado son obligatorios.</p>
       </div>
-      <button class="btn-danger" id="btnEliminar" type="button" style="display:none;">Eliminar</button>
+      <button class="btn-danger" id="btnEliminar" type="button" style="display:none;"></button>
     </div>
     <div class="card-body">
       <form id="audienciaForm">
-        <div class="field-grid">
-          <div class="field span-2">
-            <label for="radicado">Radicado del proceso</label>
-            <input type="text" id="radicado" class="mono" inputmode="numeric" placeholder="23 dígitos, solo números" required>
-            <span class="hint" id="radicadoHint">23 dígitos, solo números.</span>
+        <div class="form-section">
+          <h3 class="form-section-title">Datos del proceso</h3>
+          <div class="field-grid">
+            <div class="field span-2">
+              <label for="radicado">Radicado del proceso</label>
+              <input type="text" id="radicado" class="mono" inputmode="numeric" placeholder="23 dígitos, solo números" required>
+              <span class="hint" id="radicadoHint">23 dígitos, solo números.</span>
+            </div>
+            <div class="field span-2">
+              <label for="despacho">Despacho</label>
+              <input type="text" id="despacho" placeholder="Ej. J 2 P CTO MED.">
+            </div>
+            <div class="field">
+              <label for="tipoAudiencia">Tipo de audiencia</label>
+              <select id="tipoAudiencia"></select>
+            </div>
+            <div class="field">
+              <label for="resultado">Resultado</label>
+              <select id="resultado"></select>
+            </div>
+            <div class="field">
+              <label for="cuantia">Cuantía</label>
+              <input type="number" id="cuantia" step="1" min="0">
+            </div>
           </div>
+        </div>
 
-          <div class="field">
-            <label for="fecha">Fecha</label>
-            <input type="date" id="fecha" required>
+        <div class="form-section">
+          <h3 class="form-section-title">Programación</h3>
+          <div class="field-grid">
+            <div class="field">
+              <label for="fecha">Fecha</label>
+              <input type="date" id="fecha" required>
+            </div>
+            <div class="field">
+              <label for="hora">Hora inicio</label>
+              <input type="time" id="hora">
+            </div>
+            <div class="field">
+              <label for="horaFin">Hora fin</label>
+              <input type="time" id="horaFin">
+            </div>
+            <div class="field">
+              <label for="modalidad">Modalidad</label>
+              <select id="modalidad">
+                <option value="Virtual">Virtual</option>
+                <option value="Presencial">Presencial</option>
+              </select>
+            </div>
+            <div class="field span-2">
+              <label for="linkAudiencia">Enlace de la audiencia</label>
+              <input type="text" id="linkAudiencia" placeholder="https://…">
+            </div>
           </div>
-          <div class="field">
-            <label for="hora">Hora inicio</label>
-            <input type="time" id="hora">
-          </div>
-          <div class="field">
-            <label for="horaFin">Hora fin</label>
-            <input type="time" id="horaFin">
-          </div>
+        </div>
 
-          <div class="field span-2">
-            <label for="despacho">Despacho</label>
-            <input type="text" id="despacho" placeholder="Ej. J 2 P CTO MED.">
+        <div class="form-section">
+          <h3 class="form-section-title">Participantes</h3>
+          <div class="field-grid">
+            <div class="field">
+              <label for="abogadoTitular">Abogado titular</label>
+              <select id="abogadoTitular"></select>
+            </div>
+            <div class="field">
+              <label for="abogadoReemplaza">Abogado que reemplaza</label>
+              <select id="abogadoReemplaza"></select>
+            </div>
+            <div class="field span-2">
+              <label for="nombreProcesado">Nombre del procesado</label>
+              <input type="text" id="nombreProcesado">
+            </div>
+            <div class="field">
+              <label for="idProcesado">Identificación del procesado</label>
+              <input type="text" id="idProcesado">
+            </div>
+            <div class="field">
+              <label for="nitPersonaJuridica">NIT persona jurídica</label>
+              <input type="text" id="nitPersonaJuridica">
+            </div>
+            <div class="field span-2">
+              <label for="nombrePersonaJuridica">Nombre persona jurídica</label>
+              <input type="text" id="nombrePersonaJuridica">
+            </div>
+            <div class="field span-2">
+              <label for="correo">Correo de contacto</label>
+              <input type="email" id="correo">
+            </div>
           </div>
+        </div>
 
-          <div class="field">
-            <label for="tipoAudiencia">Tipo de audiencia</label>
-            <select id="tipoAudiencia"></select>
-          </div>
-          <div class="field">
-            <label for="resultado">Resultado</label>
-            <select id="resultado"></select>
-          </div>
-
-          <div class="field">
-            <label for="abogadoTitular">Abogado titular</label>
-            <select id="abogadoTitular"></select>
-          </div>
-          <div class="field">
-            <label for="abogadoReemplaza">Abogado que reemplaza</label>
-            <select id="abogadoReemplaza"></select>
-          </div>
-
-          <div class="field span-2">
-            <label for="nombreProcesado">Nombre del procesado</label>
-            <input type="text" id="nombreProcesado">
-          </div>
-          <div class="field">
-            <label for="idProcesado">Identificación del procesado</label>
-            <input type="text" id="idProcesado">
-          </div>
-          <div class="field">
-            <label for="nitPersonaJuridica">NIT persona jurídica</label>
-            <input type="text" id="nitPersonaJuridica">
-          </div>
-          <div class="field span-2">
-            <label for="nombrePersonaJuridica">Nombre persona jurídica</label>
-            <input type="text" id="nombrePersonaJuridica">
-          </div>
-
-          <div class="field">
-            <label for="cuantia">Cuantía</label>
-            <input type="number" id="cuantia" step="1" min="0">
-          </div>
-
-          <div class="field span-2">
-            <label for="linkAudiencia">Enlace de la audiencia</label>
-            <input type="text" id="linkAudiencia" placeholder="https://…">
-          </div>
-          <div class="field span-2">
-            <label for="correo">Correo de contacto</label>
-            <input type="email" id="correo">
-          </div>
-
-          <div class="field span-2">
-            <label for="observaciones">Observaciones</label>
-            <textarea id="observaciones"></textarea>
+        <div class="form-section">
+          <h3 class="form-section-title">Notas</h3>
+          <div class="field-grid">
+            <div class="field span-2">
+              <label for="observaciones">Observaciones</label>
+              <textarea id="observaciones"></textarea>
+            </div>
           </div>
         </div>
 
@@ -156,6 +176,7 @@
     if (audienciaId) {
       document.getElementById("formTitle").textContent = "Editar audiencia";
       document.getElementById("formSub").textContent = "Modifica los datos y guarda los cambios.";
+      document.getElementById("btnEliminar").innerHTML = ICONOS.papelera + " Eliminar";
       document.getElementById("btnEliminar").style.display = "inline-flex";
       await cargarAudiencia();
     }
@@ -175,6 +196,7 @@
     document.getElementById("fecha").value = data.fecha || "";
     document.getElementById("hora").value = data.hora ? data.hora.slice(0,5) : "";
     document.getElementById("horaFin").value = data.hora_fin ? data.hora_fin.slice(0,5) : "";
+    document.getElementById("modalidad").value = data.modalidad || "Virtual";
     document.getElementById("despacho").value = data.despacho || "";
     document.getElementById("tipoAudiencia").value = data.tipo_audiencia_id || "";
     document.getElementById("resultado").value = data.resultado_audiencia_id || "";
@@ -196,6 +218,7 @@
       fecha: document.getElementById("fecha").value,
       hora: document.getElementById("hora").value || null,
       hora_fin: document.getElementById("horaFin").value || null,
+      modalidad: document.getElementById("modalidad").value || "Virtual",
       despacho: document.getElementById("despacho").value || null,
       tipo_audiencia_id: document.getElementById("tipoAudiencia").value || null,
       resultado_audiencia_id: document.getElementById("resultado").value || null,
@@ -253,7 +276,9 @@
   }
 
   async function eliminar() {
-    if (!confirm("¿Eliminar esta audiencia? Esta acción no se puede deshacer.")) return;
+    const ok = await confirmarAccion("¿Eliminar esta audiencia? Esta acción no se puede deshacer.",
+      { titulo: "Eliminar audiencia", textoConfirmar: "Eliminar" });
+    if (!ok) return;
     const { error } = await db.from("audiencias").delete().eq("id", audienciaId);
     if (error) {
       showToast("No se pudo eliminar la audiencia.", true);

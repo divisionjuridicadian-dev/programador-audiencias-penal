@@ -37,7 +37,13 @@
         <h2>Audiencias programadas</h2>
         <p id="scopeText">Cargando…</p>
       </div>
-      <button class="btn-ghost" id="btnRefresh">↻ Actualizar</button>
+      <div class="row" style="gap:8px;">
+        <div style="position:relative;">
+          <button class="btn-ghost" id="btnColumnas" type="button">Columnas</button>
+          <div class="cols-panel" id="colsPanel" style="display:none;"></div>
+        </div>
+        <button class="btn-ghost" id="btnRefresh">↻ Actualizar</button>
+      </div>
     </div>
     <div class="card-body">
       <div class="filters-row">
@@ -67,28 +73,31 @@
       </div>
 
       <div class="table-scroll">
-        <table>
+        <table id="tablaPrincipal">
           <thead>
             <tr>
-              <th>Fecha</th>
-              <th>Hora inicio</th>
-              <th>Hora fin</th>
-              <th>Duración</th>
-              <th>Estado</th>
-              <th>Radicado</th>
-              <th>Despacho</th>
-              <th>Procesado / Persona jurídica</th>
-              <th>Tipo de audiencia</th>
-              <th>Abogado titular</th>
-              <th>Reemplaza</th>
-              <th>Observaciones</th>
-              <th>Modalidad</th>
-              <th>Editar</th>
+              <th data-col="fecha">Fecha</th>
+              <th data-col="hora_inicio">Hora inicio</th>
+              <th data-col="hora_fin">Hora fin</th>
+              <th data-col="duracion">Duración</th>
+              <th data-col="estado">Estado</th>
+              <th data-col="radicado">Radicado</th>
+              <th data-col="despacho">Despacho</th>
+              <th data-col="procesado">Procesado / Persona jurídica</th>
+              <th data-col="tipo">Tipo de audiencia</th>
+              <th data-col="titular">Abogado titular</th>
+              <th data-col="reemplaza">Reemplaza</th>
+              <th data-col="observaciones">Observaciones</th>
+              <th data-col="modalidad">Modalidad</th>
+              <th data-col="editar">Editar</th>
             </tr>
           </thead>
           <tbody id="bodyRows"></tbody>
         </table>
-        <div class="no-results" id="noResults" style="display:none;">No hay audiencias que coincidan con los filtros.</div>
+        <div class="no-results" id="noResults" style="display:none;">
+          <p style="margin:0 0 12px;">No hay audiencias que coincidan con los filtros.</p>
+          <button class="btn-ghost" type="button" onclick="limpiarFiltros()">Limpiar filtros</button>
+        </div>
       </div>
     </div>
   </div>
@@ -132,7 +141,77 @@
     ["fBuscar","fDesde","fHasta","fEstado","fAbogado"].forEach(id =>
       document.getElementById(id).addEventListener("input", renderTabla));
 
+    inicializarSelectorColumnas();
+    mostrarSkeleton();
     await cargarDatos();
+  }
+
+  // ===== Selector de columnas visibles (para no saturar la tabla) =====
+  const COLUMNAS_TOGGLEABLES = [
+    { key: "hora_inicio", label: "Hora inicio" },
+    { key: "hora_fin", label: "Hora fin" },
+    { key: "duracion", label: "Duración" },
+    { key: "despacho", label: "Despacho" },
+    { key: "procesado", label: "Procesado / Persona jurídica" },
+    { key: "tipo", label: "Tipo de audiencia" },
+    { key: "titular", label: "Abogado titular" },
+    { key: "reemplaza", label: "Reemplaza" },
+    { key: "observaciones", label: "Observaciones" },
+    { key: "modalidad", label: "Modalidad" },
+  ];
+  const CLAVE_COLUMNAS_OCULTAS = "dian_columnas_ocultas";
+
+  function columnasOcultas() {
+    try { return new Set(JSON.parse(localStorage.getItem(CLAVE_COLUMNAS_OCULTAS)) || []); }
+    catch { return new Set(); }
+  }
+
+  function inicializarSelectorColumnas() {
+    const ocultas = columnasOcultas();
+    const panel = document.getElementById("colsPanel");
+    panel.innerHTML = COLUMNAS_TOGGLEABLES.map(c => `
+      <label class="cols-panel-item">
+        <input type="checkbox" data-col-toggle="${c.key}" ${ocultas.has(c.key) ? "" : "checked"}>
+        ${escapeHtml(c.label)}
+      </label>
+    `).join("");
+    aplicarColumnasOcultas(ocultas);
+
+    panel.querySelectorAll("input[data-col-toggle]").forEach(chk => {
+      chk.addEventListener("change", () => {
+        const actuales = columnasOcultas();
+        if (chk.checked) actuales.delete(chk.dataset.colToggle);
+        else actuales.add(chk.dataset.colToggle);
+        localStorage.setItem(CLAVE_COLUMNAS_OCULTAS, JSON.stringify([...actuales]));
+        aplicarColumnasOcultas(actuales);
+      });
+    });
+
+    document.getElementById("btnColumnas").addEventListener("click", (e) => {
+      e.stopPropagation();
+      panel.style.display = panel.style.display === "block" ? "none" : "block";
+    });
+    document.addEventListener("click", (e) => {
+      if (!panel.contains(e.target) && e.target.id !== "btnColumnas") panel.style.display = "none";
+    });
+  }
+
+  function aplicarColumnasOcultas(ocultas) {
+    const tabla = document.getElementById("tablaPrincipal");
+    COLUMNAS_TOGGLEABLES.forEach(c => {
+      tabla.querySelectorAll(`[data-col="${c.key}"]`).forEach(el => {
+        el.style.display = ocultas.has(c.key) ? "none" : "";
+      });
+    });
+  }
+
+  // ===== Skeleton loader mientras responde Supabase =====
+  function mostrarSkeleton(filas = 6) {
+    const claves = [...document.querySelectorAll("thead th")].map(th => th.dataset.col || "");
+    const fila = `<tr>${claves.map(k => `<td data-col="${k}"><div class="skeleton-block"></div></td>`).join("")}</tr>`;
+    document.getElementById("bodyRows").innerHTML = fila.repeat(filas);
+    document.getElementById("noResults").style.display = "none";
+    aplicarColumnasOcultas(columnasOcultas());
   }
 
   function fechaHoyISO() {
@@ -226,32 +305,33 @@
 
     body.innerHTML = filas.map(r => `
       <tr class="${r.modalidad === 'Presencial' ? 'fila-presencial' : ''}">
-        <td class="mono-cell">${copyText(r.id,"fecha",formatFechaLarga(r.fecha))}</td>
-        <td class="mono-cell">${copyText(r.id,"hora", r.hora ? r.hora.slice(0,5) : "—")}</td>
-        <td class="mono-cell">
+        <td class="mono-cell" data-col="fecha">${copyText(r.id,"fecha",formatFechaLarga(r.fecha))}</td>
+        <td class="mono-cell" data-col="hora_inicio">${copyText(r.id,"hora", r.hora ? r.hora.slice(0,5) : "—")}</td>
+        <td class="mono-cell" data-col="hora_fin">
           <input type="time" class="time-input-mini" value="${r.hora_fin ? r.hora_fin.slice(0,5) : ""}"
                  title="Hora en que terminó la audiencia" onchange="actualizarHoraFin('${r.id}', this.value)">
         </td>
-        <td class="mono-cell">${celdaDuracion(r)}</td>
-        <td><span class="badge copyable ${badgeClassForEstado(r.estado)}" title="Clic para copiar" onclick="copiarValor('${r.id}','estado')">${escapeHtml(r.estado)}</span></td>
-        <td class="mono-cell">
+        <td class="mono-cell" data-col="duracion">${celdaDuracion(r)}</td>
+        <td data-col="estado"><span class="badge copyable ${badgeClassForEstado(r.estado)}" title="Clic para copiar" onclick="copiarValor('${r.id}','estado')">${escapeHtml(r.estado)}</span></td>
+        <td class="mono-cell" data-col="radicado">
           <span style="display:inline-flex; align-items:center; gap:4px;">
             ${copyText(r.id,"radicado", escapeHtml(r.radicado_proceso))}
-            <button type="button" class="btn-icon-edit" style="width:22px;height:22px;font-size:11px;" title="Consultar en la Rama Judicial" onclick="abrirModalRamaJudicial('${r.id}','${r.radicado_proceso}')">🔎</button>
+            <button type="button" class="btn-icon-edit" style="width:22px;height:22px;" title="Consultar en la Rama Judicial" onclick="abrirModalRamaJudicial('${r.id}','${r.radicado_proceso}')">${ICONOS.buscar}</button>
           </span>
         </td>
-        <td>${copyText(r.id,"despacho", escapeHtml(r.despacho || "—"))}</td>
-        <td>${celdaProcesado(r)}</td>
-        <td>${copyText(r.id,"tipo", escapeHtml(r.tipo_audiencia || "—"))}</td>
-        <td>${copyText(r.id,"titular", escapeHtml(r.abogado_titular || "—"))}</td>
-        <td>${copyText(r.id,"reemplaza", escapeHtml(r.abogado_reemplaza || "—"))}</td>
-        <td>${copyText(r.id,"observaciones", escapeHtml(r.observaciones || "—"), { truncate: true, title: r.observaciones || "Sin observaciones" })}</td>
-        <td class="modalidad-cell">${celdaModalidad(r)}</td>
-        <td class="col-actions">
-          <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">✏️</button>
+        <td data-col="despacho">${copyText(r.id,"despacho", escapeHtml(r.despacho || "—"))}</td>
+        <td data-col="procesado">${celdaProcesado(r)}</td>
+        <td data-col="tipo">${copyText(r.id,"tipo", escapeHtml(r.tipo_audiencia || "—"))}</td>
+        <td data-col="titular">${copyText(r.id,"titular", escapeHtml(r.abogado_titular || "—"))}</td>
+        <td data-col="reemplaza">${copyText(r.id,"reemplaza", escapeHtml(r.abogado_reemplaza || "—"))}</td>
+        <td data-col="observaciones">${copyText(r.id,"observaciones", escapeHtml(r.observaciones || "—"), { truncate: true, title: r.observaciones || "Sin observaciones" })}</td>
+        <td class="modalidad-cell" data-col="modalidad">${celdaModalidad(r)}</td>
+        <td class="col-actions" data-col="editar">
+          <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">${ICONOS.editar}</button>
         </td>
       </tr>
     `).join("");
+    aplicarColumnasOcultas(columnasOcultas());
   }
 
   const DIAS_ABREV = ["dom","lun","mar","mié","jue","vie","sáb"];
@@ -311,9 +391,10 @@
       ? ` <a href="${escapeHtml(link)}" target="_blank" rel="noopener" title="${escapeHtml(link)}">Enlace</a>`
       : "";
     return `
+      <span class="modalidad-icon" title="${esPresencial ? "Presencial" : "Virtual"}">${esPresencial ? ICONOS.usuario : ICONOS.monitor}</span>
       <select class="modalidad-select" title="Modalidad de la audiencia" onchange="actualizarModalidad('${r.id}', this.value)">
-        <option value="Virtual" ${esPresencial ? "" : "selected"}>💻 Virtual</option>
-        <option value="Presencial" ${esPresencial ? "selected" : ""}>🧑 Presencial</option>
+        <option value="Virtual" ${esPresencial ? "" : "selected"}>Virtual</option>
+        <option value="Presencial" ${esPresencial ? "selected" : ""}>Presencial</option>
       </select>${enlaceHtml}
     `;
   }
@@ -447,7 +528,9 @@
   async function usarDespachoRama() {
     if (!fichaRamaData || !fichaRamaData.despacho || !fichaRamaAudienciaId) return;
     const despacho = fichaRamaData.despacho;
-    if (!confirm(`¿Reemplazar el despacho de esta audiencia por:\n\n"${despacho}"?`)) return;
+    const ok = await confirmarAccion(`¿Reemplazar el despacho de esta audiencia por:\n\n"${despacho}"?`,
+      { titulo: "Actualizar despacho", textoConfirmar: "Reemplazar", peligro: false });
+    if (!ok) return;
 
     const { error } = await db.from("audiencias").update({ despacho }).eq("id", fichaRamaAudienciaId);
     if (error) {
@@ -472,7 +555,9 @@
     if (!demandados.length) return;
 
     const nombreProcesado = demandados.join(" / ");
-    if (!confirm(`¿Establecer el nombre del procesado de esta audiencia como:\n\n"${nombreProcesado}"?`)) return;
+    const ok = await confirmarAccion(`¿Establecer el nombre del procesado de esta audiencia como:\n\n"${nombreProcesado}"?`,
+      { titulo: "Actualizar nombre del procesado", textoConfirmar: "Establecer", peligro: false });
+    if (!ok) return;
 
     const { error } = await db.from("audiencias").update({ nombre_procesado: nombreProcesado }).eq("id", fichaRamaAudienciaId);
     if (error) {
@@ -503,7 +588,7 @@
     }
 
     const btnUsarDespacho = d.despacho
-      ? `<button type="button" class="btn-icon-edit" style="width:22px;height:22px;font-size:11px;" title="Guardar este despacho en la audiencia (reemplaza el actual)" onclick="usarDespachoRama()">📥</button>`
+      ? `<button type="button" class="btn-icon-edit" style="width:22px;height:22px;" title="Guardar este despacho en la audiencia (reemplaza el actual)" onclick="usarDespachoRama()">${ICONOS.descargar}</button>`
       : "";
 
     html += `<div class="ficha-grid">

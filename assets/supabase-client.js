@@ -116,3 +116,80 @@ function llenarSelect(select, items, valorActual) {
     items.map(it => `<option value="${it.id}">${escapeHtml(it.nombre)}</option>`).join("");
   if (valorActual) select.value = valorActual;
 }
+
+// ===== Íconos SVG (reemplazan emojis en botones de acción) =====
+// Trazos tipo Feather/Lucide dibujados a mano para no depender de una
+// librería externa por un puñado de íconos — mismo criterio ya usado en
+// Inventario_Unidad_Penal.html (línea visual hermana de esta app).
+const ICONOS = {
+  editar: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/></svg>',
+  buscar: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>',
+  descargar: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>',
+  monitor: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>',
+  usuario: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>',
+  papelera: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"/><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/></svg>',
+};
+
+// ===== Modal de confirmación (reemplaza confirm() nativo) =====
+// Reusa las clases .modal-overlay/.modal-card ya definidas en style.css.
+// Uso: if (!(await confirmarAccion("¿Seguro?", {titulo:"Eliminar"}))) return;
+function confirmarAccion(mensaje, opts) {
+  opts = opts || {};
+  const titulo = opts.titulo || "Confirmar";
+  const textoConfirmar = opts.textoConfirmar || "Confirmar";
+  const peligro = opts.peligro !== false;
+
+  return new Promise((resolve) => {
+    let modal = document.getElementById("confirmModal");
+    if (!modal) {
+      modal = document.createElement("div");
+      modal.id = "confirmModal";
+      modal.className = "modal-overlay";
+      modal.innerHTML = `
+        <div class="modal-card" style="max-width:420px;">
+          <div class="modal-head">
+            <h3 id="confirmModalTitulo"></h3>
+            <button type="button" class="modal-close" id="confirmModalCerrar">✕</button>
+          </div>
+          <div class="modal-content">
+            <p id="confirmModalMensaje" style="font-size:13.5px; white-space:pre-line; margin:0 0 18px; color:var(--ink);"></p>
+            <div class="form-actions" style="margin-top:0; padding-top:0; border-top:none;">
+              <button type="button" class="btn btn-ghost" id="confirmModalCancelar">Cancelar</button>
+              <button type="button" class="btn" id="confirmModalConfirmar"></button>
+            </div>
+          </div>
+        </div>`;
+      document.body.appendChild(modal);
+      modal.addEventListener("click", (e) => { if (e.target === modal) modal._onCancelar(); });
+    }
+
+    document.getElementById("confirmModalTitulo").textContent = titulo;
+    document.getElementById("confirmModalMensaje").textContent = mensaje;
+    const btnConfirmar = document.getElementById("confirmModalConfirmar");
+    btnConfirmar.textContent = textoConfirmar;
+    btnConfirmar.className = "btn " + (peligro ? "btn-danger" : "btn-gold");
+
+    const btnCancelar = document.getElementById("confirmModalCancelar");
+    const btnCerrar = document.getElementById("confirmModalCerrar");
+
+    function limpiar() {
+      modal.classList.remove("show");
+      btnCancelar.removeEventListener("click", onCancelar);
+      btnCerrar.removeEventListener("click", onCancelar);
+      btnConfirmar.removeEventListener("click", onConfirmar);
+    }
+    function onCancelar() { limpiar(); resolve(false); }
+    function onConfirmar() { limpiar(); resolve(true); }
+    modal._onCancelar = onCancelar;
+
+    btnCancelar.addEventListener("click", onCancelar);
+    btnCerrar.addEventListener("click", onCancelar);
+    btnConfirmar.addEventListener("click", onConfirmar);
+    modal.classList.add("show");
+  });
+}
+document.addEventListener("keydown", (e) => {
+  if (e.key !== "Escape") return;
+  const modal = document.getElementById("confirmModal");
+  if (modal && modal.classList.contains("show")) modal._onCancelar();
+});
