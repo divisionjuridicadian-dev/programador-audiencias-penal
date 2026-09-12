@@ -109,12 +109,22 @@
     const abogados = await cargarCatalogo("abogados");
     llenarSelectFiltro(document.getElementById("fAbogado"), abogados.map(a => a.nombre));
 
+    // Por defecto solo se ve de hoy en adelante; lo anterior queda oculto salvo
+    // que se cambie el filtro de fecha manualmente.
+    document.getElementById("fDesde").value = fechaHoyISO();
+
     document.getElementById("btnRefresh").addEventListener("click", cargarDatos);
     document.getElementById("btnLimpiar").addEventListener("click", limpiarFiltros);
     ["fBuscar","fDesde","fHasta","fEstado","fAbogado"].forEach(id =>
       document.getElementById(id).addEventListener("input", renderTabla));
 
     await cargarDatos();
+  }
+
+  function fechaHoyISO() {
+    const d = new Date();
+    const sinOffset = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return sinOffset.toISOString().slice(0, 10);
   }
 
   function llenarSelectFiltro(select, valores) {
@@ -154,7 +164,7 @@
 
   function limpiarFiltros() {
     document.getElementById("fBuscar").value = "";
-    document.getElementById("fDesde").value = "";
+    document.getElementById("fDesde").value = fechaHoyISO();
     document.getElementById("fHasta").value = "";
     document.getElementById("fEstado").value = "";
     document.getElementById("fAbogado").value = "";
