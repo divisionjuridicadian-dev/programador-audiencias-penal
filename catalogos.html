@@ -6,7 +6,8 @@
 <title>Catálogos · Programador · Unidad Penal DIAN</title>
 <link rel="stylesheet" href="assets/style.css">
 <style>
-  .cat-grid{display:grid; grid-template-columns:repeat(3,1fr); gap:16px;}
+  .cat-grid{display:grid; grid-template-columns:repeat(2,1fr); gap:16px;}
+  .abogados-card{margin-bottom:16px;}
   @media (max-width:900px){ .cat-grid{grid-template-columns:1fr;} }
   .cat-list{list-style:none; margin:0; padding:0; display:flex; flex-direction:column; gap:6px; max-height:340px; overflow-y:auto;}
   .cat-list li{display:flex; align-items:center; justify-content:space-between; gap:8px; padding:7px 9px; border:1px solid var(--line); border-radius:6px; font-size:13px;}
@@ -82,18 +83,26 @@
   <div class="main-area">
 
 <main class="page">
-  <div class="cat-grid">
-    <div class="card">
-      <div class="card-head"><div><h2>Abogados</h2><p>Titulares y reemplazos disponibles</p></div></div>
-      <div class="card-body">
-        <ul class="cat-list" id="listaAbogados"></ul>
-        <div class="cat-add">
-          <input type="text" id="nuevoAbogado" placeholder="Nombre completo">
-          <button class="btn-gold" onclick="agregar('abogados','nuevoAbogado','listaAbogados')">Agregar</button>
-        </div>
+  <div class="card abogados-card">
+    <div class="card-head">
+      <div><h2>Abogados</h2><p>Titulares y reemplazos disponibles</p></div>
+      <button class="btn-gold" type="button" onclick="abrirModalAbogado()">+ Agregar abogado</button>
+    </div>
+    <div class="card-body">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Cédula</th><th>Nombres</th><th>T.P.</th><th>Correo</th><th>Género</th><th>Celular</th><th>Firma</th><th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="listaAbogados"></tbody>
+        </table>
       </div>
     </div>
+  </div>
 
+  <div class="cat-grid">
     <div class="card">
       <div class="card-head"><div><h2>Tipos de audiencia</h2><p>Opciones del desplegable</p></div></div>
       <div class="card-body">
@@ -134,6 +143,58 @@
   </div>
 </main>
 
+<div class="modal-overlay" id="modalAbogado" onclick="if (event.target === this) cerrarModalAbogado();">
+  <div class="modal-card" style="max-width:640px;">
+    <div class="modal-head">
+      <h3 id="modalAbogadoTitulo">Agregar abogado</h3>
+      <button type="button" class="modal-close" title="Cerrar" onclick="cerrarModalAbogado()">✕</button>
+    </div>
+    <div class="modal-content">
+      <form id="formAbogado" onsubmit="guardarAbogado(event)">
+        <input type="hidden" id="abogadoId">
+        <div class="field-grid">
+          <div class="field span-2">
+            <label for="abogadoNombre">Nombres completos</label>
+            <input type="text" id="abogadoNombre" required placeholder="Ej. JAIRO ORLANDO VASCO RIOS">
+          </div>
+          <div class="field">
+            <label for="abogadoCedula">Cédula</label>
+            <input type="text" id="abogadoCedula" inputmode="numeric" placeholder="Ej. 3354272">
+          </div>
+          <div class="field">
+            <label for="abogadoTP">Tarjeta profesional</label>
+            <input type="text" id="abogadoTP" placeholder="Ej. 53093">
+          </div>
+          <div class="field">
+            <label for="abogadoCorreo">Correo</label>
+            <input type="email" id="abogadoCorreo" placeholder="nombre@medellin.gov.co">
+          </div>
+          <div class="field">
+            <label for="abogadoCelular">Celular</label>
+            <input type="tel" id="abogadoCelular" placeholder="Ej. 3001234567">
+          </div>
+          <div class="field">
+            <label for="abogadoGenero">Género</label>
+            <select id="abogadoGenero">
+              <option value="">—</option>
+              <option value="M">M</option>
+              <option value="F">F</option>
+            </select>
+          </div>
+          <div class="field">
+            <label for="abogadoFirma">Ruta o enlace de la firma</label>
+            <input type="text" id="abogadoFirma" placeholder="Ruta del archivo o enlace a la imagen">
+          </div>
+        </div>
+        <div class="row" style="justify-content:flex-end; gap:8px; margin-top:20px;">
+          <button type="button" class="btn-ghost" onclick="cerrarModalAbogado()">Cancelar</button>
+          <button type="submit" class="btn-gold">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
   </div>
 </div>
 
@@ -145,11 +206,106 @@
     if (!session) return;
     wireUserChip(session);
     await Promise.all([
-      cargarLista("abogados", "listaAbogados"),
+      cargarAbogados(),
       cargarLista("tipos_audiencia", "listaTipos"),
       cargarLista("resultados_audiencia", "listaResultados"),
       cargarDespachos(),
     ]);
+    document.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") cerrarModalAbogado();
+    });
+  }
+
+  // ===== Abogados (tabla con datos extendidos: cédula, T.P., género, celular, firma) =====
+  let todosLosAbogados = [];
+
+  async function cargarAbogados() {
+    const { data, error } = await db.from("abogados").select("*").eq("activo", true).order("nombre");
+    if (error) { console.error(error); showToast("No se pudieron cargar los abogados.", true); return; }
+    todosLosAbogados = data;
+    renderAbogados();
+  }
+
+  function renderAbogados() {
+    const tbody = document.getElementById("listaAbogados");
+    tbody.innerHTML = todosLosAbogados.map(a => `
+      <tr>
+        <td class="mono-cell">${escapeHtml(a.cedula || "—")}</td>
+        <td>${escapeHtml(a.nombre)}</td>
+        <td class="mono-cell">${escapeHtml(a.tarjeta_profesional || "—")}</td>
+        <td>${escapeHtml(a.correo || "—")}</td>
+        <td>${escapeHtml(a.genero || "—")}</td>
+        <td class="mono-cell">${escapeHtml(a.celular || "—")}</td>
+        <td title="${escapeHtml(a.ruta_firma || "")}">${a.ruta_firma ? "Sí" : "—"}</td>
+        <td class="col-actions">
+          <span style="display:inline-flex; gap:4px;">
+            <button class="btn-icon-edit" type="button" title="Editar abogado" onclick="abrirModalAbogado('${a.id}')">${ICONOS.editar}</button>
+            <button class="link-danger" type="button" title="Quitar de la lista" onclick="desactivarAbogado('${a.id}')">${ICONOS.papelera}</button>
+          </span>
+        </td>
+      </tr>
+    `).join("") || `<tr><td colspan="8" class="muted" style="text-align:center;">Sin abogados.</td></tr>`;
+  }
+
+  function abrirModalAbogado(id) {
+    document.getElementById("formAbogado").reset();
+    document.getElementById("abogadoId").value = "";
+    if (id) {
+      const a = todosLosAbogados.find(x => x.id === id);
+      if (!a) return;
+      document.getElementById("modalAbogadoTitulo").textContent = "Editar abogado";
+      document.getElementById("abogadoId").value = a.id;
+      document.getElementById("abogadoNombre").value = a.nombre || "";
+      document.getElementById("abogadoCedula").value = a.cedula || "";
+      document.getElementById("abogadoTP").value = a.tarjeta_profesional || "";
+      document.getElementById("abogadoCorreo").value = a.correo || "";
+      document.getElementById("abogadoCelular").value = a.celular || "";
+      document.getElementById("abogadoGenero").value = a.genero || "";
+      document.getElementById("abogadoFirma").value = a.ruta_firma || "";
+    } else {
+      document.getElementById("modalAbogadoTitulo").textContent = "Agregar abogado";
+    }
+    document.getElementById("modalAbogado").classList.add("show");
+  }
+
+  function cerrarModalAbogado() {
+    document.getElementById("modalAbogado").classList.remove("show");
+  }
+
+  async function guardarAbogado(e) {
+    e.preventDefault();
+    const id = document.getElementById("abogadoId").value;
+    const nombre = document.getElementById("abogadoNombre").value.trim();
+    if (!nombre) { showToast("El nombre es obligatorio.", true); return; }
+    const datos = {
+      nombre,
+      cedula: document.getElementById("abogadoCedula").value.trim() || null,
+      tarjeta_profesional: document.getElementById("abogadoTP").value.trim() || null,
+      correo: document.getElementById("abogadoCorreo").value.trim() || null,
+      celular: document.getElementById("abogadoCelular").value.trim() || null,
+      genero: document.getElementById("abogadoGenero").value || null,
+      ruta_firma: document.getElementById("abogadoFirma").value.trim() || null,
+    };
+    const { error } = id
+      ? await db.from("abogados").update(datos).eq("id", id)
+      : await db.from("abogados").insert(datos);
+    if (error) {
+      showToast(error.code === "23505" ? "Ya existe un abogado con esa cédula o ese nombre." : "No se pudo guardar.", true);
+      return;
+    }
+    cerrarModalAbogado();
+    showToast(id ? "Abogado actualizado." : "Abogado agregado.");
+    cargarAbogados();
+  }
+
+  async function desactivarAbogado(id) {
+    const ok = await confirmarAccion(
+      "¿Quitar este abogado del catálogo? Las audiencias ya guardadas con este abogado no se ven afectadas.",
+      { titulo: "Quitar del catálogo", textoConfirmar: "Quitar" });
+    if (!ok) return;
+    const { error } = await db.from("abogados").update({ activo: false }).eq("id", id);
+    if (error) { showToast("No se pudo quitar.", true); return; }
+    cargarAbogados();
   }
 
   let todosLosDespachos = [];
