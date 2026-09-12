@@ -444,12 +444,13 @@
 
   async function cargarDatos() {
     document.getElementById("scopeText").textContent = "Cargando…";
-    // Orden por fecha (la más próxima primero) y, dentro del mismo día, por
-    // hora — la más reciente primero (nullsFirst:false para que las
-    // audiencias sin hora registrada queden al final, no arriba).
+    // Orden por fecha y, dentro del mismo día, por hora — ambos ascendentes
+    // (lo más próximo primero: la fecha más cercana, y dentro de un mismo
+    // día la hora más temprana antes que la más tardía). nullsFirst:false
+    // para que las audiencias sin hora registrada queden al final, no arriba.
     const { data, error } = await db.from("audiencias_estado").select("*")
       .order("fecha", { ascending: true })
-      .order("hora", { ascending: false, nullsFirst: false });
+      .order("hora", { ascending: true, nullsFirst: false });
     if (error) {
       showToast("No se pudieron cargar las audiencias.", true);
       console.error(error);
