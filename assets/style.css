@@ -175,6 +175,7 @@ tbody tr:hover{background:var(--red-soft);}
 .truncate{max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom;}
 .modalidad-cell{white-space:nowrap;}
 .modalidad-cell a{font-weight:600;}
+input.time-input-mini{width:92px; padding:5px 7px; font-size:12px;}
 
 /* ===== Filtros ===== */
 .filters-row{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; align-items:flex-end;}

@@ -53,8 +53,12 @@
             <input type="date" id="fecha" required>
           </div>
           <div class="field">
-            <label for="hora">Hora</label>
+            <label for="hora">Hora inicio</label>
             <input type="time" id="hora">
+          </div>
+          <div class="field">
+            <label for="horaFin">Hora fin</label>
+            <input type="time" id="horaFin">
           </div>
 
           <div class="field span-2">
@@ -174,6 +178,7 @@
     document.getElementById("radicado").dispatchEvent(new Event("input"));
     document.getElementById("fecha").value = data.fecha || "";
     document.getElementById("hora").value = data.hora ? data.hora.slice(0,5) : "";
+    document.getElementById("horaFin").value = data.hora_fin ? data.hora_fin.slice(0,5) : "";
     document.getElementById("despacho").value = data.despacho || "";
     document.getElementById("tipoAudiencia").value = data.tipo_audiencia_id || "";
     document.getElementById("resultado").value = data.resultado_audiencia_id || "";
@@ -195,6 +200,7 @@
       radicado_proceso: document.getElementById("radicado").value,
       fecha: document.getElementById("fecha").value,
       hora: document.getElementById("hora").value || null,
+      hora_fin: document.getElementById("horaFin").value || null,
       despacho: document.getElementById("despacho").value || null,
       tipo_audiencia_id: document.getElementById("tipoAudiencia").value || null,
       resultado_audiencia_id: document.getElementById("resultado").value || null,
