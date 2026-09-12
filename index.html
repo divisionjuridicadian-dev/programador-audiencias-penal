@@ -79,6 +79,7 @@
               <th>Tipo de audiencia</th>
               <th>Abogado titular</th>
               <th>Reemplaza</th>
+              <th>Editar</th>
             </tr>
           </thead>
           <tbody id="bodyRows"></tbody>
@@ -181,18 +182,75 @@
     noResults.style.display = "none";
 
     body.innerHTML = filas.map(r => `
-      <tr class="row-link" onclick="window.location.href='audiencia.html?id=${r.id}'">
-        <td class="mono-cell">${formatFecha(r.fecha)}</td>
-        <td class="mono-cell">${r.hora ? r.hora.slice(0,5) : "—"}</td>
-        <td><span class="badge ${badgeClassForEstado(r.estado)}">${escapeHtml(r.estado)}</span></td>
-        <td class="mono-cell">${escapeHtml(r.radicado_proceso)}</td>
-        <td>${escapeHtml(r.despacho || "—")}</td>
-        <td>${escapeHtml(r.nombre_procesado || r.nombre_persona_juridica || "—")}</td>
-        <td>${escapeHtml(r.tipo_audiencia || "—")}</td>
-        <td>${escapeHtml(r.abogado_titular || "—")}</td>
-        <td>${escapeHtml(r.abogado_reemplaza || "—")}</td>
+      <tr>
+        <td class="mono-cell"><span class="cell-copy"><span class="cell-text">${formatFecha(r.fecha)}</span>${copyBtn(r.id,"fecha")}</span></td>
+        <td class="mono-cell"><span class="cell-copy"><span class="cell-text">${r.hora ? r.hora.slice(0,5) : "—"}</span>${copyBtn(r.id,"hora")}</span></td>
+        <td><span class="cell-copy"><span class="badge ${badgeClassForEstado(r.estado)}">${escapeHtml(r.estado)}</span>${copyBtn(r.id,"estado")}</span></td>
+        <td class="mono-cell"><span class="cell-copy"><span class="cell-text">${escapeHtml(r.radicado_proceso)}</span>${copyBtn(r.id,"radicado")}</span></td>
+        <td><span class="cell-copy"><span class="cell-text">${escapeHtml(r.despacho || "—")}</span>${copyBtn(r.id,"despacho")}</span></td>
+        <td><span class="cell-copy"><span class="cell-text">${escapeHtml(r.nombre_procesado || r.nombre_persona_juridica || "—")}</span>${copyBtn(r.id,"procesado")}</span></td>
+        <td><span class="cell-copy"><span class="cell-text">${escapeHtml(r.tipo_audiencia || "—")}</span>${copyBtn(r.id,"tipo")}</span></td>
+        <td><span class="cell-copy"><span class="cell-text">${escapeHtml(r.abogado_titular || "—")}</span>${copyBtn(r.id,"titular")}</span></td>
+        <td><span class="cell-copy"><span class="cell-text">${escapeHtml(r.abogado_reemplaza || "—")}</span>${copyBtn(r.id,"reemplaza")}</span></td>
+        <td class="col-actions">
+          <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">✏️</button>
+        </td>
       </tr>
     `).join("");
+  }
+
+  function copyBtn(id, campo) {
+    return `<button class="copy-btn" type="button" title="Copiar" onclick="copiarValor('${id}','${campo}')">⧉</button>`;
+  }
+
+  function valorCampo(fila, campo) {
+    switch (campo) {
+      case "fecha": return formatFecha(fila.fecha);
+      case "hora": return fila.hora ? fila.hora.slice(0,5) : "";
+      case "estado": return fila.estado || "";
+      case "radicado": return fila.radicado_proceso || "";
+      case "despacho": return fila.despacho || "";
+      case "procesado": return fila.nombre_procesado || fila.nombre_persona_juridica || "";
+      case "tipo": return fila.tipo_audiencia || "";
+      case "titular": return fila.abogado_titular || "";
+      case "reemplaza": return fila.abogado_reemplaza || "";
+      default: return "";
+    }
+  }
+
+  function copiarAlPortapapeles(texto) {
+    if (navigator.clipboard && window.isSecureContext) {
+      return navigator.clipboard.writeText(texto);
+    }
+    return new Promise((resolve, reject) => {
+      const ta = document.createElement("textarea");
+      ta.value = texto;
+      ta.style.position = "fixed";
+      ta.style.opacity = "0";
+      document.body.appendChild(ta);
+      ta.focus();
+      ta.select();
+      try {
+        document.execCommand("copy") ? resolve() : reject();
+      } catch (e) {
+        reject(e);
+      } finally {
+        document.body.removeChild(ta);
+      }
+    });
+  }
+
+  function copiarValor(id, campo) {
+    const fila = todasLasFilas.find(r => r.id === id);
+    if (!fila) return;
+    const texto = valorCampo(fila, campo);
+    if (!texto) {
+      showToast("No hay dato para copiar.", true);
+      return;
+    }
+    copiarAlPortapapeles(texto)
+      .then(() => showToast("Copiado: " + texto))
+      .catch(() => showToast("No se pudo copiar.", true));
   }
 
   init();

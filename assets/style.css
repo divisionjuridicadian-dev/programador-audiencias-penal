@@ -145,9 +145,23 @@ thead th{position:sticky; top:0; background:var(--navy-900); color:var(--paper);
 tbody td{padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top; color:#111827; font-weight:500;}
 tbody tr:nth-child(even){background:#fbfaf6;}
 tbody tr:hover{background:var(--red-soft);}
-tbody tr.row-link{cursor:pointer;}
 .mono-cell{font-family:var(--mono); font-variant-numeric:tabular-nums;}
 .no-results, .empty{text-align:center; padding:36px 20px; color:var(--ink-soft); font-size:13.5px;}
+
+.cell-copy{display:flex; align-items:center; justify-content:space-between; gap:8px;}
+.cell-copy .cell-text{overflow:hidden; text-overflow:ellipsis;}
+.copy-btn{
+  flex:none; width:22px; height:22px; padding:0; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--line); border-radius:5px; background:#fff; color:var(--ink-soft); font-size:12px;
+  cursor:pointer; opacity:.5; line-height:1;
+}
+.copy-btn:hover{opacity:1; border-color:var(--navy-700); color:var(--navy-700);}
+.col-actions{text-align:center; white-space:nowrap;}
+.btn-icon-edit{
+  flex:none; width:28px; height:28px; padding:0; display:inline-flex; align-items:center; justify-content:center;
+  border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink-soft); font-size:13px; cursor:pointer;
+}
+.btn-icon-edit:hover{background:var(--gold-soft); border-color:var(--gold); color:var(--navy-950);}
 
 /* ===== Filtros ===== */
 .filters-row{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; align-items:flex-end;}
