@@ -145,6 +145,9 @@ thead th{position:sticky; top:0; background:var(--navy-900); color:var(--paper);
 tbody td{padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top; color:#111827; font-weight:500;}
 tbody tr:nth-child(even){background:#fbfaf6;}
 tbody tr:hover{background:var(--red-soft);}
+/* Virtual es la norma (sin resaltar); Presencial es la excepción y se marca. */
+tbody tr.fila-presencial{background:var(--amber-soft);}
+tbody tr.fila-presencial:hover{background:#f0dcb4;}
 .mono-cell{font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap;}
 .no-results, .empty{text-align:center; padding:36px 20px; color:var(--ink-soft); font-size:13.5px;}
 
@@ -176,6 +179,7 @@ tbody tr:hover{background:var(--red-soft);}
 .modalidad-cell{white-space:nowrap;}
 .modalidad-cell a{font-weight:600;}
 input.time-input-mini{width:92px; padding:5px 7px; font-size:12px;}
+select.modalidad-select{width:auto; padding:5px 7px; font-size:12px; display:inline-block;}
 
 /* ===== Filtros ===== */
 .filters-row{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; align-items:flex-end;}

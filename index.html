@@ -225,7 +225,7 @@
     noResults.style.display = "none";
 
     body.innerHTML = filas.map(r => `
-      <tr>
+      <tr class="${r.modalidad === 'Presencial' ? 'fila-presencial' : ''}">
         <td class="mono-cell">${copyText(r.id,"fecha",formatFechaLarga(r.fecha))}</td>
         <td class="mono-cell">${copyText(r.id,"hora", r.hora ? r.hora.slice(0,5) : "—")}</td>
         <td class="mono-cell">
@@ -302,14 +302,33 @@
     showToast(valor ? "Hora de fin guardada." : "Hora de fin eliminada.");
   }
 
-  // Sin un campo de "modalidad" en la base, se infiere de si hay enlace: con
-  // link_audiencia se asume virtual, sin él se asume presencial.
+  // Virtual es la norma general; Presencial es la excepción que se elige a
+  // mano por audiencia (columna `modalidad`, default 'Virtual' en la base).
   function celdaModalidad(r) {
     const link = (r.link_audiencia || "").trim();
-    if (link) {
-      return `<span title="Audiencia virtual">💻</span> <a href="${escapeHtml(link)}" target="_blank" rel="noopener" title="${escapeHtml(link)}">Enlace</a>`;
+    const esPresencial = r.modalidad === "Presencial";
+    const enlaceHtml = (!esPresencial && link)
+      ? ` <a href="${escapeHtml(link)}" target="_blank" rel="noopener" title="${escapeHtml(link)}">Enlace</a>`
+      : "";
+    return `
+      <select class="modalidad-select" title="Modalidad de la audiencia" onchange="actualizarModalidad('${r.id}', this.value)">
+        <option value="Virtual" ${esPresencial ? "" : "selected"}>💻 Virtual</option>
+        <option value="Presencial" ${esPresencial ? "selected" : ""}>🧑 Presencial</option>
+      </select>${enlaceHtml}
+    `;
+  }
+
+  async function actualizarModalidad(id, valor) {
+    const { error } = await db.from("audiencias").update({ modalidad: valor }).eq("id", id);
+    if (error) {
+      console.error(error);
+      showToast("No se pudo actualizar la modalidad.", true);
+      return;
     }
-    return `<span title="Audiencia presencial">🧑</span> <span class="muted" style="font-size:12px;">Presencial</span>`;
+    const fila = todasLasFilas.find(r => r.id === id);
+    if (fila) fila.modalidad = valor;
+    renderTabla();
+    showToast("Modalidad actualizada: " + valor);
   }
 
   // Nombre del procesado en negrita y, debajo, el de la persona jurídica en
