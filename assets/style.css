@@ -19,6 +19,37 @@
   --serif:"Source Serif 4","Iowan Old Style","Georgia",serif;
   --sans:"Inter","Segoe UI",system-ui,-apple-system,sans-serif;
   --mono:"IBM Plex Mono","SFMono-Regular",Consolas,monospace;
+
+  /* Paleta oficial GOV.CO. --govco-cobalt está verificado en tres fuentes
+     independientes: el CSS en vivo de gov.co (ahí aparece como "marine",
+     #36c), el botón .btn-govco ya usado en Inventario_Unidad_Penal.html
+     (la app hermana), y una búsqueda del valor oficial. --govco-matterhorn,
+     --govco-silver, --govco-solitude, --govco-white-smoke, --govco-sunglow,
+     --govco-orange y --govco-green también salen del CSS en vivo de gov.co
+     (ahí con otros nombres: tundora, silver, selago, concrete, gold, orange,
+     green respectivamente). El resto (Grey, Havelock Blue, Tropical Blue,
+     Golden Brown, Vis Vis, Corn Silk, Portage, Red, Yellow) son la
+     aproximación estándar más cercana a cada nombre — ajustar si se cuenta
+     con el manual de marca exacto de la entidad. */
+  --govco-cobalt:#3366cc;
+  --govco-black:#000000;
+  --govco-matterhorn:#4b4b4b;
+  --govco-grey:#949494;
+  --govco-white:#ffffff;
+  --govco-havelock-blue:#4672c8;
+  --govco-tropical-blue:#c3ddfd;
+  --govco-golden-brown:#99621e;
+  --govco-sunglow:#ffab00;
+  --govco-vis-vis:#f5deb3;
+  --govco-silver:#bababa;
+  --govco-solitude:#e5eefb;
+  --govco-corn-silk:#fff8dc;
+  --govco-white-smoke:#f2f2f2;
+  --govco-portage:#8b9fe8;
+  --govco-red:#f42e62;
+  --govco-orange:#f3561f;
+  --govco-yellow:#ffc107;
+  --govco-green:#069169;
 }
 *{box-sizing:border-box;}
 html,body{margin:0;padding:0;}
@@ -28,8 +59,34 @@ body{
   color:var(--ink);
   min-height:100vh;
 }
-a{color:var(--navy-700);}
+a{color:var(--govco-cobalt);}
 ::selection{background:var(--gold-soft); color:var(--navy-950);}
+
+/* ===== Barra superior GOV.CO ===== */
+.govco-topbar{background:var(--govco-black); padding:7px 24px;}
+.govco-topbar a{display:inline-flex; align-items:center; line-height:0;}
+.govco-topbar img{height:18px; width:auto; display:block;}
+
+/* Utilidades de la paleta GOV.CO, por si se necesitan sueltas en algún lugar. */
+.govco-bg-cobalt{background:var(--govco-cobalt);} .govcolor-cobalt{color:var(--govco-cobalt);}
+.govco-bg-black{background:var(--govco-black);} .govcolor-black{color:var(--govco-black);}
+.govco-bg-matterhorn{background:var(--govco-matterhorn);} .govcolor-matterhorn{color:var(--govco-matterhorn);}
+.govco-bg-grey{background:var(--govco-grey);} .govcolor-grey{color:var(--govco-grey);}
+.govco-bg-white{background:var(--govco-white);} .govcolor-white{color:var(--govco-white);}
+.govco-bg-havelock-blue{background:var(--govco-havelock-blue);} .govcolor-havelock-blue{color:var(--govco-havelock-blue);}
+.govco-bg-tropical-blue{background:var(--govco-tropical-blue);} .govcolor-tropical-blue{color:var(--govco-tropical-blue);}
+.govco-bg-golden-brown{background:var(--govco-golden-brown);} .govcolor-golden-brown{color:var(--govco-golden-brown);}
+.govco-bg-sunglow{background:var(--govco-sunglow);} .govcolor-sunglow{color:var(--govco-sunglow);}
+.govco-bg-vis-vis{background:var(--govco-vis-vis);} .govcolor-vis-vis{color:var(--govco-vis-vis);}
+.govco-bg-silver{background:var(--govco-silver);} .govcolor-silver{color:var(--govco-silver);}
+.govco-bg-solitude{background:var(--govco-solitude);} .govcolor-solitude{color:var(--govco-solitude);}
+.govco-bg-corn-silk{background:var(--govco-corn-silk);} .govcolor-corn-silk{color:var(--govco-corn-silk);}
+.govco-bg-white-smoke{background:var(--govco-white-smoke);} .govcolor-white-smoke{color:var(--govco-white-smoke);}
+.govco-bg-portage{background:var(--govco-portage);} .govcolor-portage{color:var(--govco-portage);}
+.govco-bg-red{background:var(--govco-red);} .govcolor-red{color:var(--govco-red);}
+.govco-bg-orange{background:var(--govco-orange);} .govcolor-orange{color:var(--govco-orange);}
+.govco-bg-yellow{background:var(--govco-yellow);} .govcolor-yellow{color:var(--govco-yellow);}
+.govco-bg-green{background:var(--govco-green);} .govcolor-green{color:var(--govco-green);}
 
 /* ===== Encabezado / navegación ===== */
 header.top{
