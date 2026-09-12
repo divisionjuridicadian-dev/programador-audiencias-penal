@@ -246,8 +246,10 @@
   // del estado — emula el patrón "ficha de proceso" de Control de Términos). =====
   const CLAVE_VISTA = "dian_vista_audiencias";
 
+  // Tarjetas es la vista principal por defecto — solo cambia si el usuario
+  // elige "Tabla" a mano (esa elección sí se recuerda entre sesiones).
   function vistaActual() {
-    return localStorage.getItem(CLAVE_VISTA) === "tarjetas" ? "tarjetas" : "tabla";
+    return localStorage.getItem(CLAVE_VISTA) === "tabla" ? "tabla" : "tarjetas";
   }
 
   function inicializarSelectorVista() {
