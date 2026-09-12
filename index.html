@@ -165,6 +165,37 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalNovedad" onclick="if (event.target === this) cerrarModalNovedad();">
+  <div class="modal-card" style="max-width:520px;">
+    <div class="modal-head">
+      <h3>Agregar novedad</h3>
+      <button type="button" class="modal-close" title="Cerrar" onclick="cerrarModalNovedad()">✕</button>
+    </div>
+    <div class="modal-content">
+      <form id="formNovedad" onsubmit="guardarNovedad(event)">
+        <div class="field-grid">
+          <div class="field span-2">
+            <label for="novedadTexto">Novedad</label>
+            <input type="text" id="novedadTexto" required placeholder="Ej. Se aplazó la audiencia">
+          </div>
+          <div class="field">
+            <label for="novedadFecha">Fecha</label>
+            <input type="date" id="novedadFecha" required>
+          </div>
+          <div class="field span-2">
+            <label for="novedadObservacion">Acción a realizar / observación</label>
+            <textarea id="novedadObservacion" rows="3" placeholder="Ej. Reprogramar y notificar al apoderado"></textarea>
+          </div>
+        </div>
+        <div class="row" style="justify-content:flex-end; gap:8px; margin-top:20px;">
+          <button type="button" class="btn-ghost" onclick="cerrarModalNovedad()">Cancelar</button>
+          <button type="submit" class="btn-gold">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
 <footer class="footer-note">Programador de Audiencias · Unidad Penal DIAN — datos en Supabase, acceso restringido al equipo</footer>
 
   </div>
@@ -448,15 +479,110 @@
     // (lo más próximo primero: la fecha más cercana, y dentro de un mismo
     // día la hora más temprana antes que la más tardía). nullsFirst:false
     // para que las audiencias sin hora registrada queden al final, no arriba.
-    const { data, error } = await db.from("audiencias_estado").select("*")
-      .order("fecha", { ascending: true })
-      .order("hora", { ascending: true, nullsFirst: false });
+    const [{ data, error }] = await Promise.all([
+      db.from("audiencias_estado").select("*")
+        .order("fecha", { ascending: true })
+        .order("hora", { ascending: true, nullsFirst: false }),
+      cargarNovedades(),
+    ]);
     if (error) {
       showToast("No se pudieron cargar las audiencias.", true);
       console.error(error);
       return;
     }
     todasLasFilas = data;
+    renderTabla();
+  }
+
+  // ===== Novedades: bitácora manual por audiencia (ver renderTarjetas) =====
+  let novedadesPorAudiencia = new Map();
+  let novedadAudienciaId = null;
+
+  async function cargarNovedades() {
+    const { data, error } = await db.from("novedades").select("*").order("fecha", { ascending: false });
+    if (error) { console.error(error); return; }
+    novedadesPorAudiencia = new Map();
+    (data || []).forEach(n => {
+      if (!novedadesPorAudiencia.has(n.audiencia_id)) novedadesPorAudiencia.set(n.audiencia_id, []);
+      novedadesPorAudiencia.get(n.audiencia_id).push(n);
+    });
+  }
+
+  function celdaNovedades(r) {
+    const lista = novedadesPorAudiencia.get(r.id) || [];
+    const cuerpo = lista.length
+      ? `<table class="novedades-mini-table">
+          <thead><tr><th>Novedad</th><th>Fecha</th><th>Observación / acción a realizar</th><th></th></tr></thead>
+          <tbody>${lista.map(n => `
+            <tr>
+              <td>${escapeHtml(n.novedad)}</td>
+              <td class="mono-cell">${formatFecha(n.fecha)}</td>
+              <td>${escapeHtml(n.observacion || "—")}</td>
+              <td class="col-actions">
+                <button class="link-danger" type="button" title="Eliminar novedad" onclick="eliminarNovedad('${n.id}')">${ICONOS.papelera}</button>
+              </td>
+            </tr>`).join("")}
+          </tbody>
+        </table>`
+      : `<p class="muted" style="font-size:11.5px; margin:0;">Sin novedades registradas.</p>`;
+    return `
+      <div class="audiencia-card-novedades">
+        <div class="audiencia-card-novedades-head">
+          <span class="lbl-mini">Novedades</span>
+          <button type="button" class="btn-mini-add" onclick="abrirModalNovedad('${r.id}')">+ Agregar novedad</button>
+        </div>
+        ${cuerpo}
+      </div>
+    `;
+  }
+
+  function abrirModalNovedad(audienciaId) {
+    novedadAudienciaId = audienciaId;
+    document.getElementById("formNovedad").reset();
+    document.getElementById("novedadFecha").value = fechaHoyISO();
+    document.getElementById("modalNovedad").classList.add("show");
+  }
+
+  function cerrarModalNovedad() {
+    document.getElementById("modalNovedad").classList.remove("show");
+    novedadAudienciaId = null;
+  }
+
+  async function guardarNovedad(e) {
+    e.preventDefault();
+    const novedad = document.getElementById("novedadTexto").value.trim();
+    const fecha = document.getElementById("novedadFecha").value;
+    const observacion = document.getElementById("novedadObservacion").value.trim();
+    if (!novedad || !fecha || !novedadAudienciaId) {
+      showToast("La novedad y la fecha son obligatorias.", true);
+      return;
+    }
+    const { error } = await db.from("novedades").insert({
+      audiencia_id: novedadAudienciaId, novedad, fecha, observacion: observacion || null,
+    });
+    if (error) {
+      console.error(error);
+      showToast("No se pudo guardar la novedad.", true);
+      return;
+    }
+    cerrarModalNovedad();
+    showToast("Novedad agregada.");
+    await cargarNovedades();
+    renderTabla();
+  }
+
+  async function eliminarNovedad(id) {
+    const ok = await confirmarAccion("¿Eliminar esta novedad? Esta acción no se puede deshacer.",
+      { titulo: "Eliminar novedad", textoConfirmar: "Eliminar" });
+    if (!ok) return;
+    const { error } = await db.from("novedades").delete().eq("id", id);
+    if (error) {
+      console.error(error);
+      showToast("No se pudo eliminar la novedad.", true);
+      return;
+    }
+    showToast("Novedad eliminada.");
+    await cargarNovedades();
     renderTabla();
   }
 
@@ -593,6 +719,7 @@
             <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">${ICONOS.editar}</button>
           </div>
         </div>
+        ${celdaNovedades(r)}
       </div>
     `).join("");
   }
@@ -961,7 +1088,7 @@
   }
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") cerrarModalRamaJudicial();
+    if (e.key === "Escape") { cerrarModalRamaJudicial(); cerrarModalNovedad(); }
   });
 
   init();
