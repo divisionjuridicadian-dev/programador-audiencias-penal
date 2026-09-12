@@ -72,8 +72,12 @@
         <p id="scopeText">Cargando…</p>
       </div>
       <div class="row" style="gap:8px;">
+        <div class="vista-toggle" id="vistaToggle">
+          <button type="button" id="btnVistaTabla" title="Ver como tabla"></button>
+          <button type="button" id="btnVistaTarjetas" title="Ver como tarjetas"></button>
+        </div>
         <button class="btn-ghost" id="btnExportar" type="button">Exportar a Excel</button>
-        <div style="position:relative;">
+        <div style="position:relative;" id="colsWrap">
           <button class="btn-ghost" id="btnColumnas" type="button">Columnas</button>
           <div class="cols-panel" id="colsPanel" style="display:none;"></div>
         </div>
@@ -107,7 +111,7 @@
         </div>
       </div>
 
-      <div class="table-scroll">
+      <div class="table-scroll" id="tableScrollWrap">
         <table id="tablaPrincipal">
           <thead>
             <tr>
@@ -129,10 +133,11 @@
           </thead>
           <tbody id="bodyRows"></tbody>
         </table>
-        <div class="no-results" id="noResults" style="display:none;">
-          <p style="margin:0 0 12px;">No hay audiencias que coincidan con los filtros.</p>
-          <button class="btn-ghost" type="button" onclick="limpiarFiltros()">Limpiar filtros</button>
-        </div>
+      </div>
+      <div class="tarjetas-container" id="tarjetasContainer" style="display:none;"></div>
+      <div class="no-results" id="noResults" style="display:none;">
+        <p style="margin:0 0 12px;">No hay audiencias que coincidan con los filtros.</p>
+        <button class="btn-ghost" type="button" onclick="limpiarFiltros()">Limpiar filtros</button>
       </div>
     </div>
   </div>
@@ -181,9 +186,43 @@
     ["fBuscar","fDesde","fHasta","fEstado","fAbogado"].forEach(id =>
       document.getElementById(id).addEventListener("input", renderTabla));
 
+    inicializarSelectorVista();
     inicializarSelectorColumnas();
     mostrarSkeleton();
     await cargarDatos();
+  }
+
+  // ===== Selector de vista: Tabla (densa, con columnas configurables) o
+  // Tarjetas (una ficha por audiencia, con borde de color según urgencia
+  // del estado — emula el patrón "ficha de proceso" de Control de Términos). =====
+  const CLAVE_VISTA = "dian_vista_audiencias";
+
+  function vistaActual() {
+    return localStorage.getItem(CLAVE_VISTA) === "tarjetas" ? "tarjetas" : "tabla";
+  }
+
+  function inicializarSelectorVista() {
+    document.getElementById("btnVistaTabla").innerHTML = ICONOS.tabla + " Tabla";
+    document.getElementById("btnVistaTarjetas").innerHTML = ICONOS.tarjetas + " Tarjetas";
+    document.getElementById("btnVistaTabla").addEventListener("click", () => establecerVista("tabla"));
+    document.getElementById("btnVistaTarjetas").addEventListener("click", () => establecerVista("tarjetas"));
+    aplicarVistaUI();
+  }
+
+  function establecerVista(v) {
+    localStorage.setItem(CLAVE_VISTA, v);
+    aplicarVistaUI();
+    renderTabla();
+  }
+
+  function aplicarVistaUI() {
+    const v = vistaActual();
+    document.getElementById("btnVistaTabla").classList.toggle("active", v === "tabla");
+    document.getElementById("btnVistaTarjetas").classList.toggle("active", v === "tarjetas");
+    document.getElementById("tableScrollWrap").style.display = v === "tabla" ? "" : "none";
+    document.getElementById("tarjetasContainer").style.display = v === "tarjetas" ? "" : "none";
+    // El selector de columnas solo tiene sentido para la tabla.
+    document.getElementById("colsWrap").style.display = v === "tabla" ? "" : "none";
   }
 
   // Exporta exactamente lo que dejan ver los filtros activos (fecha, estado,
@@ -284,10 +323,15 @@
 
   // ===== Skeleton loader mientras responde Supabase =====
   function mostrarSkeleton(filas = 6) {
+    document.getElementById("noResults").style.display = "none";
+    if (vistaActual() === "tarjetas") {
+      document.getElementById("tarjetasContainer").innerHTML =
+        '<div class="audiencia-card"><div class="skeleton-block" style="width:45%; margin-bottom:10px;"></div><div class="skeleton-block" style="width:70%; margin-bottom:6px;"></div><div class="skeleton-block" style="width:30%;"></div></div>'.repeat(filas);
+      return;
+    }
     const claves = [...document.querySelectorAll("thead th")].map(th => th.dataset.col || "");
     const fila = `<tr>${claves.map(k => `<td data-col="${k}"><div class="skeleton-block"></div></td>`).join("")}</tr>`;
     document.getElementById("bodyRows").innerHTML = fila.repeat(filas);
-    document.getElementById("noResults").style.display = "none";
     aplicarColumnasOcultas(columnasOcultas());
   }
 
@@ -372,16 +416,21 @@
     document.getElementById("scopeText").textContent =
       `${filas.length} de ${todasLasFilas.length} audiencias`;
 
-    const body = document.getElementById("bodyRows");
     const noResults = document.getElementById("noResults");
     if (filas.length === 0) {
-      body.innerHTML = "";
+      document.getElementById("bodyRows").innerHTML = "";
+      document.getElementById("tarjetasContainer").innerHTML = "";
       noResults.style.display = "block";
       return;
     }
     noResults.style.display = "none";
 
-    body.innerHTML = filas.map(r => `
+    if (vistaActual() === "tarjetas") {
+      renderTarjetas(filas);
+      return;
+    }
+
+    document.getElementById("bodyRows").innerHTML = filas.map(r => `
       <tr class="${r.modalidad === 'Presencial' ? 'fila-presencial' : ''}">
         <td class="mono-cell" data-col="fecha">${copyText(r.id,"fecha",formatFechaLarga(r.fecha))}</td>
         <td class="mono-cell" data-col="hora_inicio">${copyText(r.id,"hora", r.hora ? r.hora.slice(0,5) : "—")}</td>
@@ -410,6 +459,55 @@
       </tr>
     `).join("");
     aplicarColumnasOcultas(columnasOcultas());
+  }
+
+  // Mismo color que ya usa el badge de Estado en la tabla (badgeClassForEstado,
+  // en supabase-client.js) pero como borde izquierdo de la tarjeta — así el
+  // color siempre significa lo mismo en las dos vistas.
+  function bordeClaseParaEstado(estado) {
+    return badgeClassForEstado(estado).replace("badge-", "borde-");
+  }
+
+  // ===== Vista de tarjetas: una ficha por audiencia, emulando el patrón
+  // "proceso-card" de Control de Términos (borde de color + radicado
+  // destacado + franja de acciones), adaptado a los campos de audiencias
+  // y a la interacción de "clic para copiar" ya establecida en esta app. =====
+  function renderTarjetas(filas) {
+    document.getElementById("tarjetasContainer").innerHTML = filas.map(r => `
+      <div class="audiencia-card ${bordeClaseParaEstado(r.estado)} ${r.modalidad === 'Presencial' ? 'fila-presencial' : ''}">
+        <div class="audiencia-card-top">
+          <div class="audiencia-card-main">
+            <div class="audiencia-card-head-row">
+              ${copyText(r.id, "radicado", `<span class="audiencia-card-radicado">${escapeHtml(r.radicado_proceso)}</span>`)}
+              <button type="button" class="btn-icon-edit" style="width:22px;height:22px;" title="Consultar en la Rama Judicial" onclick="abrirModalRamaJudicial('${r.id}','${r.radicado_proceso}')">${ICONOS.buscar}</button>
+              ${r.tipo_audiencia ? `<span class="audiencia-tag-tipo">${escapeHtml(r.tipo_audiencia)}</span>` : ""}
+              <span class="badge copyable ${badgeClassForEstado(r.estado)}" title="Clic para copiar" onclick="copiarValor('${r.id}','estado')">${escapeHtml(r.estado)}</span>
+            </div>
+            <div class="audiencia-card-despacho" title="${escapeHtml(r.despacho || "Sin despacho")}">${copyText(r.id, "despacho", escapeHtml(r.despacho || "—"))}</div>
+            <div class="audiencia-card-procesado">${celdaProcesado(r)}</div>
+            ${(r.abogado_titular || r.abogado_reemplaza) ? `<div class="muted" style="font-size:11.5px; margin-top:5px;">
+              ${r.abogado_titular ? "Titular: " + escapeHtml(r.abogado_titular) : ""}${r.abogado_reemplaza ? " · Reemplaza: " + escapeHtml(r.abogado_reemplaza) : ""}
+            </div>` : ""}
+            ${r.observaciones ? `<div class="muted truncate" style="font-size:11.5px; margin-top:5px; max-width:100%;">${copyText(r.id, "observaciones", escapeHtml(r.observaciones), { title: r.observaciones })}</div>` : ""}
+          </div>
+          <div class="audiencia-card-side">
+            <div class="audiencia-card-fecha">${copyText(r.id, "fecha", formatFechaLarga(r.fecha))}</div>
+            <div class="audiencia-card-hora">
+              ${copyText(r.id, "hora", r.hora ? r.hora.slice(0,5) : "—")} –
+              <input type="time" class="time-input-mini" value="${r.hora_fin ? r.hora_fin.slice(0,5) : ""}"
+                     title="Hora en que terminó la audiencia" onchange="actualizarHoraFin('${r.id}', this.value)">
+            </div>
+            <div class="audiencia-card-hora">${celdaDuracion(r)}</div>
+          </div>
+        </div>
+        <div class="audiencia-card-foot">
+          <div class="audiencia-card-modalidad">${celdaModalidad(r)}</div>
+          <div class="audiencia-card-actions">
+            <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">${ICONOS.editar}</button>
+          </div>
+        </div>
+      </div>
+    `).join("");
   }
 
   const DIAS_ABREV = ["dom","lun","mar","mié","jue","vie","sáb"];

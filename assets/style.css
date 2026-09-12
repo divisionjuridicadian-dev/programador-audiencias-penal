@@ -298,6 +298,57 @@ select.modalidad-select:hover, select.modalidad-select:focus{
 .cols-panel-item:hover{background:var(--paper-dim);}
 .cols-panel-item input{margin:0;}
 
+/* ===== Selector de vista (Tabla / Tarjetas) ===== */
+.vista-toggle{display:inline-flex; border:1px solid var(--line); border-radius:7px; overflow:hidden;}
+.vista-toggle button{
+  border:none; background:#fff; color:var(--ink-soft); padding:7px 10px; cursor:pointer;
+  display:inline-flex; align-items:center; gap:6px; font-size:12.5px; font-weight:600;
+}
+.vista-toggle button + button{border-left:1px solid var(--line);}
+.vista-toggle button:hover{background:var(--paper-dim);}
+.vista-toggle button.active{background:var(--navy-900); color:#fff;}
+
+/* ===== Vista de tarjetas — emula el patrón "ficha de proceso" de
+   Control de Términos (borde de color según urgencia, radicado
+   destacado, franja de acciones), como alternativa a la tabla densa. ===== */
+.tarjetas-container{display:flex; flex-direction:column; gap:10px;}
+.audiencia-card{
+  position:relative; background:#fff; border:1px solid var(--line); border-left:4px solid var(--line);
+  border-radius:8px; padding:14px 16px; transition:box-shadow .15s, border-color .15s, transform .15s;
+}
+.audiencia-card:hover{box-shadow:0 4px 14px rgba(15,26,48,.12); transform:translateY(-1px);}
+.audiencia-card.fila-presencial{background:var(--amber-soft);}
+.audiencia-card.borde-hoy{border-left-color:var(--red);}
+.audiencia-card.borde-semana{border-left-color:var(--amber);}
+.audiencia-card.borde-mes{border-left-color:var(--gold);}
+.audiencia-card.borde-realizada{border-left-color:var(--green);}
+.audiencia-card.borde-adelante, .audiencia-card.borde-nodef{border-left-color:var(--line);}
+
+.audiencia-card-top{display:flex; flex-wrap:wrap; justify-content:space-between; gap:14px;}
+.audiencia-card-main{min-width:0; flex:1 1 320px;}
+.audiencia-card-head-row{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+.audiencia-card-radicado{font-weight:700; font-family:var(--mono); font-size:14px; color:var(--navy-700);}
+.audiencia-tag-tipo{
+  display:inline-flex; align-items:center; padding:2px 9px; border-radius:20px; font-size:10.5px;
+  font-weight:700; background:var(--paper-dim); color:var(--navy-700); border:1px solid var(--line);
+}
+.audiencia-card-despacho{
+  font-size:12px; color:var(--ink-soft); margin-top:5px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;
+}
+.audiencia-card-procesado{font-size:12.5px; margin-top:5px;}
+
+.audiencia-card-side{display:flex; flex-direction:column; align-items:flex-end; gap:6px; flex-shrink:0; text-align:right;}
+.audiencia-card-fecha{font-size:12.5px; font-weight:600; white-space:nowrap;}
+.audiencia-card-hora{font-family:var(--mono); font-size:11.5px; color:var(--ink-soft); white-space:nowrap;}
+
+.audiencia-card-foot{
+  display:flex; flex-wrap:wrap; align-items:center; justify-content:space-between; gap:10px;
+  margin-top:12px; padding-top:10px; border-top:1px dashed var(--line);
+}
+.audiencia-card-modalidad{display:flex; align-items:center; gap:6px; font-size:12px; color:var(--ink-soft);}
+.audiencia-card-actions{display:flex; align-items:center; gap:6px;}
+
 /* ===== Skeleton loader ===== */
 .skeleton-block{
   height:12px; border-radius:4px; background:linear-gradient(90deg, #eee 25%, #f5f3ee 50%, #eee 75%);
