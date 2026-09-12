@@ -79,6 +79,8 @@
               <th>Tipo de audiencia</th>
               <th>Abogado titular</th>
               <th>Reemplaza</th>
+              <th>Observaciones</th>
+              <th>Modalidad</th>
               <th>Editar</th>
             </tr>
           </thead>
@@ -222,7 +224,7 @@
 
     body.innerHTML = filas.map(r => `
       <tr>
-        <td class="mono-cell">${copyText(r.id,"fecha",formatFecha(r.fecha))}</td>
+        <td class="mono-cell">${copyText(r.id,"fecha",formatFechaLarga(r.fecha))}</td>
         <td class="mono-cell">${copyText(r.id,"hora", r.hora ? r.hora.slice(0,5) : "—")}</td>
         <td><span class="badge copyable ${badgeClassForEstado(r.estado)}" title="Clic para copiar" onclick="copiarValor('${r.id}','estado')">${escapeHtml(r.estado)}</span></td>
         <td class="mono-cell">
@@ -236,6 +238,8 @@
         <td>${copyText(r.id,"tipo", escapeHtml(r.tipo_audiencia || "—"))}</td>
         <td>${copyText(r.id,"titular", escapeHtml(r.abogado_titular || "—"))}</td>
         <td>${copyText(r.id,"reemplaza", escapeHtml(r.abogado_reemplaza || "—"))}</td>
+        <td>${copyText(r.id,"observaciones", escapeHtml(r.observaciones || "—"), { truncate: true, title: r.observaciones || "Sin observaciones" })}</td>
+        <td class="modalidad-cell">${celdaModalidad(r)}</td>
         <td class="col-actions">
           <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">✏️</button>
         </td>
@@ -243,8 +247,34 @@
     `).join("");
   }
 
-  function copyText(id, campo, texto) {
-    return `<span class="copyable" title="Clic para copiar" onclick="copiarValor('${id}','${campo}')">${texto}</span>`;
+  const DIAS_ABREV = ["dom","lun","mar","mié","jue","vie","sáb"];
+  const MESES_ABREV = ["ene","feb","mar","abr","may","jun","jul","ago","sep","oct","nov","dic"];
+
+  // Ej: "vie, 11 sep 2026". Se arma con año/mes/día locales (no
+  // `new Date(iso)`, que interpreta el ISO como UTC y puede correr el día
+  // en zonas horarias negativas como Colombia).
+  function formatFechaLarga(iso) {
+    if (!iso) return "—";
+    const [y, m, d] = iso.split("-").map(Number);
+    const fecha = new Date(y, m - 1, d);
+    return `${DIAS_ABREV[fecha.getDay()]}, ${d} ${MESES_ABREV[m - 1]} ${y}`;
+  }
+
+  // Sin un campo de "modalidad" en la base, se infiere de si hay enlace: con
+  // link_audiencia se asume virtual, sin él se asume presencial.
+  function celdaModalidad(r) {
+    const link = (r.link_audiencia || "").trim();
+    if (link) {
+      return `<span title="Audiencia virtual">💻</span> <a href="${escapeHtml(link)}" target="_blank" rel="noopener" title="${escapeHtml(link)}">Enlace</a>`;
+    }
+    return `<span title="Audiencia presencial">🧑</span> <span class="muted" style="font-size:12px;">Presencial</span>`;
+  }
+
+  function copyText(id, campo, texto, opts) {
+    opts = opts || {};
+    const cls = "copyable" + (opts.truncate ? " truncate" : "");
+    const title = opts.title || "Clic para copiar";
+    return `<span class="${cls}" title="${escapeHtml(title)}" onclick="copiarValor('${id}','${campo}')">${texto}</span>`;
   }
 
   function valorCampo(fila, campo) {
@@ -258,6 +288,7 @@
       case "tipo": return fila.tipo_audiencia || "";
       case "titular": return fila.abogado_titular || "";
       case "reemplaza": return fila.abogado_reemplaza || "";
+      case "observaciones": return fila.observaciones || "";
       default: return "";
     }
   }

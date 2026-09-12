@@ -145,7 +145,7 @@ thead th{position:sticky; top:0; background:var(--navy-900); color:var(--paper);
 tbody td{padding:9px 12px; border-bottom:1px solid var(--line); vertical-align:top; color:#111827; font-weight:500;}
 tbody tr:nth-child(even){background:#fbfaf6;}
 tbody tr:hover{background:var(--red-soft);}
-.mono-cell{font-family:var(--mono); font-variant-numeric:tabular-nums;}
+.mono-cell{font-family:var(--mono); font-variant-numeric:tabular-nums; white-space:nowrap;}
 .no-results, .empty{text-align:center; padding:36px 20px; color:var(--ink-soft); font-size:13.5px;}
 
 .copyable{cursor:pointer; border-radius:4px; margin:-3px -5px; padding:3px 5px; display:inline-block;}
@@ -171,6 +171,10 @@ tbody tr:hover{background:var(--red-soft);}
 .ficha-grid .lbl{color:var(--ink-soft); font-size:10.5px; text-transform:uppercase; letter-spacing:.04em; font-weight:700;}
 .ficha-grid .val{font-weight:600; margin-top:2px;}
 @media (max-width:560px){ .ficha-grid{grid-template-columns:1fr;} }
+
+.truncate{max-width:220px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; vertical-align:bottom;}
+.modalidad-cell{white-space:nowrap;}
+.modalidad-cell a{font-weight:600;}
 
 /* ===== Filtros ===== */
 .filters-row{display:flex; flex-wrap:wrap; gap:10px; margin-bottom:14px; align-items:flex-end;}
