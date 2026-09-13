@@ -1061,7 +1061,24 @@
   }
 
   async function construirYDescargarPoder(r, directora, abogado) {
-    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType } = docx;
+    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType } = docx;
+
+    // Formato pedido para todo el documento: Arial 12 (24 en half-points,
+    // que es como docx mide el tamaño de fuente) y justificado. Se fija como
+    // valor por defecto del documento (styles.default.document) Y además se
+    // repite explícito en cada TextRun/Paragraph vía estos helpers, para que
+    // no dependa de que Word respete los defaults en todas las celdas de tabla.
+    const FUENTE = "Arial";
+    const TAMANO = 24; // 12pt
+    function correr(texto, opts) {
+      return new TextRun(Object.assign({ text: texto, font: FUENTE, size: TAMANO }, opts));
+    }
+    function parrafo(contenido, opts) {
+      const base = { alignment: AlignmentType.JUSTIFIED };
+      if (typeof contenido === "string") base.children = [correr(contenido)];
+      else base.children = contenido;
+      return new Paragraph(Object.assign(base, opts));
+    }
 
     const esFemenino = (abogado.genero || "").toUpperCase() === "F";
     const alAbogado = esFemenino ? "a la abogada" : "al abogado";
@@ -1085,60 +1102,64 @@
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: filasTabla.map(([etiqueta, valor]) => new TableRow({
         children: [
-          new TableCell({ width: { size: 22, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: etiqueta, bold: true })] })] }),
-          new TableCell({ width: { size: 78, type: WidthType.PERCENTAGE }, children: [new Paragraph(valor)] }),
+          new TableCell({ width: { size: 22, type: WidthType.PERCENTAGE }, children: [parrafo([correr(etiqueta, { bold: true })])] }),
+          new TableCell({ width: { size: 78, type: WidthType.PERCENTAGE }, children: [parrafo(valor)] }),
         ],
       })),
     });
 
-    const parrafoPoderdante = new Paragraph({
-      spacing: { after: 220 },
-      children: [new TextRun(
-        `${directora.nombres_completos}, mayor de edad, identificada con cédula de ciudadanía Nº ${directora.identificacion || "—"}, ` +
-        `actuando como ${directora.cargo || "Directora Asignada"} de la Dirección Seccional de Impuestos de Medellín, según Resolución ` +
-        `${directora.resolucion || "—"} del ${formatFechaLargaSinDia(directora.fecha_resolucion)}, debidamente facultada por los Arts. 46 y 47 ` +
-        `de la resolución N° 000091 del 3 de septiembre de 2021, proferida por el Director General de Impuestos y Aduanas Nacionales, ` +
-        `por medio de este escrito manifiesto que confiero poder especial, amplio y suficiente ${alAbogado} ${abogado.nombre}, ${identificadoA} ` +
-        `con C.C. N° ${abogado.cedula || "—"} y T.P.N° ${abogado.tarjeta_profesional || "—"} del C.S. de la Judicatura, con el fin de representar ` +
-        `a la NACION-U.A.E. DIRECCIÓN DE IMPUESTOS Y ADUANAS NACIONALES, en calidad de VÍCTIMA, dentro del proceso de la referencia.`
-      )],
-    });
+    const parrafoPoderdante = parrafo(
+      `${directora.nombres_completos}, mayor de edad, identificada con cédula de ciudadanía Nº ${directora.identificacion || "—"}, ` +
+      `actuando como ${directora.cargo || "Directora Asignada"} de la Dirección Seccional de Impuestos de Medellín, según Resolución ` +
+      `${directora.resolucion || "—"} del ${formatFechaLargaSinDia(directora.fecha_resolucion)}, debidamente facultada por los Arts. 46 y 47 ` +
+      `de la resolución N° 000091 del 3 de septiembre de 2021, proferida por el Director General de Impuestos y Aduanas Nacionales, ` +
+      `por medio de este escrito manifiesto que confiero poder especial, amplio y suficiente ${alAbogado} ${abogado.nombre}, ${identificadoA} ` +
+      `con C.C. N° ${abogado.cedula || "—"} y T.P.N° ${abogado.tarjeta_profesional || "—"} del C.S. de la Judicatura, con el fin de representar ` +
+      `a la NACION-U.A.E. DIRECCIÓN DE IMPUESTOS Y ADUANAS NACIONALES, en calidad de VÍCTIMA, dentro del proceso de la referencia.`,
+      { spacing: { after: 220 } }
+    );
 
-    const parrafoFacultades = new Paragraph({
-      spacing: { after: 220 },
-      children: [new TextRun(
-        `El profesional del derecho queda ${facultadoA} para transigir; conciliar judicial y extrajudicialmente; desistir previa ` +
-        `autorización del competente; e interponer recursos; participar en la práctica de los medios de prueba o contradicción que se ` +
-        `estimen pertinentes, de acuerdo con los procedimientos legales y las instrucciones del Comité de Conciliación y Defensa Judicial ` +
-        `y demás consagradas en el artículo 77 del C.G.P., para la eficaz representación de los intereses de la DIAN.`
-      )],
-    });
+    const parrafoFacultades = parrafo(
+      `El profesional del derecho queda ${facultadoA} para transigir; conciliar judicial y extrajudicialmente; desistir previa ` +
+      `autorización del competente; e interponer recursos; participar en la práctica de los medios de prueba o contradicción que se ` +
+      `estimen pertinentes, de acuerdo con los procedimientos legales y las instrucciones del Comité de Conciliación y Defensa Judicial ` +
+      `y demás consagradas en el artículo 77 del C.G.P., para la eficaz representación de los intereses de la DIAN.`,
+      { spacing: { after: 220 } }
+    );
 
-    const parrafoCierre = new Paragraph({
-      spacing: { after: 500 },
-      children: [new TextRun(`Sírvase señor Juez, reconocer personería ${apoderadoA}, dentro de los términos y para los efectos consagrados en este mandato.`)],
-    });
+    const parrafoCierre = parrafo(
+      `Sírvase señor Juez, reconocer personería ${apoderadoA}, dentro de los términos y para los efectos consagrados en este mandato.`,
+      { spacing: { after: 500 } }
+    );
 
     const doc = new Document({
+      styles: {
+        default: {
+          document: {
+            run: { font: FUENTE, size: TAMANO },
+            paragraph: { alignment: AlignmentType.JUSTIFIED },
+          },
+        },
+      },
       sections: [{
         children: [
-          new Paragraph({ text: `Medellín, ${formatFechaLargaSinDia(fechaHoyISO())}`, spacing: { after: 300 } }),
-          new Paragraph({ text: "Señor (a)" }),
-          new Paragraph({ text: r.despacho || "—" }),
-          new Paragraph({ text: [r.ciudad, r.departamento].filter(Boolean).join(" - "), spacing: { after: 300 } }),
+          parrafo(`Medellín, ${formatFechaLargaSinDia(fechaHoyISO())}`, { spacing: { after: 300 } }),
+          parrafo("Señor (a) Juez"),
+          parrafo(r.despacho || "—"),
+          parrafo(r.ciudad || "—", { spacing: { after: 300 } }),
           tabla,
-          new Paragraph({ text: "", spacing: { after: 200 } }),
+          parrafo("", { spacing: { after: 200 } }),
           parrafoPoderdante,
           parrafoFacultades,
           parrafoCierre,
-          new Paragraph({ text: (directora.nombres_completos || "").toUpperCase() }),
-          new Paragraph({ text: directora.cargo || "", spacing: { after: 400 } }),
-          new Paragraph({ text: "ACEPTO:", spacing: { after: 400 } }),
-          new Paragraph({ text: (abogado.nombre || "").toUpperCase() }),
-          new Paragraph({ text: tituloAbogado }),
-          new Paragraph({ text: "División Jurídica" }),
-          new Paragraph({ text: "Dirección Seccional de Impuestos de Medellín" }),
-          new Paragraph({ text: abogado.correo || "" }),
+          parrafo((directora.nombres_completos || "").toUpperCase()),
+          parrafo(directora.cargo || "", { spacing: { after: 400 } }),
+          parrafo("ACEPTO:", { spacing: { after: 400 } }),
+          parrafo((abogado.nombre || "").toUpperCase()),
+          parrafo(tituloAbogado),
+          parrafo("División Jurídica"),
+          parrafo("Dirección Seccional de Impuestos de Medellín"),
+          parrafo(abogado.correo || ""),
         ],
       }],
     });
