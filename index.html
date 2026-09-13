@@ -114,17 +114,18 @@
           <label>Buscar</label>
           <input type="text" id="fBuscar" placeholder="Radicado, procesado, despacho…">
         </div>
-        <div class="field grow">
-          <label id="lblPeriodo">Período</label>
-          <div class="chip-group" id="periodoToggle" role="group" aria-labelledby="lblPeriodo">
-            <button type="button" class="chip" data-periodo="hoy" aria-pressed="false">Hoy</button>
-            <button type="button" class="chip" data-periodo="manana" aria-pressed="false">Mañana</button>
-            <button type="button" class="chip" data-periodo="semana" aria-pressed="false">Esta semana</button>
-            <button type="button" class="chip" data-periodo="proxima_semana" aria-pressed="false">Próxima semana</button>
-            <button type="button" class="chip" data-periodo="mes" aria-pressed="false">Este mes</button>
-            <button type="button" class="chip" data-periodo="anio" aria-pressed="false">Este año</button>
-            <button type="button" class="chip" data-periodo="todos" aria-pressed="false">Todos</button>
-          </div>
+        <div class="field">
+          <label for="fPeriodo">Período</label>
+          <select id="fPeriodo">
+            <option value="">Selecciona…</option>
+            <option value="hoy">Hoy</option>
+            <option value="manana">Mañana</option>
+            <option value="semana">Esta semana</option>
+            <option value="proxima_semana">Próxima semana</option>
+            <option value="mes">Este mes</option>
+            <option value="anio">Este año</option>
+            <option value="todos">Todos</option>
+          </select>
         </div>
         <div class="field">
           <label>Desde</label>
@@ -135,8 +136,8 @@
           <input type="date" id="fHasta">
         </div>
         <div class="field">
-          <label>Estado</label>
-          <select id="fEstado"><option value="">Todos</option></select>
+          <label for="fResultado">Resultado</label>
+          <select id="fResultado"><option value="">Todos</option></select>
         </div>
         <div class="field">
           <label>Abogado titular</label>
@@ -291,16 +292,6 @@
   let poderAudienciaId = null;
   let recordatorioAudienciaId = null; // audiencia a la que se le está por enviar un recordatorio por correo
 
-  // Solo define el orden en que se muestran cuando existen; no limita cuáles
-  // aparecen (cualquier estado que no esté aquí — p.ej. un resultado antiguo
-  // desactivado que sigue en audiencias históricas — se agrega igual al
-  // final, ver actualizarOpcionesEstado()).
-  const ORDEN_ESTADOS = ["Audiencia hoy","Esta semana","Este mes","Próximo mes","Más adelante","Por definir",
-                          "Cesación del Procedimiento por Pago","Preclusión (Solicitada por la Fiscalía)",
-                          "Principio de Oportunidad","Allanamiento a cargos (Aceptación de Responsabilidad)",
-                          "Archivo de las diligencias","Reprogramación o Aplazamiento",
-                          "No se realiza la audiencia (Cancelación)"];
-
   async function init() {
     const session = await requireSession();
     if (!session) return;
@@ -309,6 +300,7 @@
     const abogados = await cargarCatalogo("abogados");
     llenarSelectFiltro(document.getElementById("fAbogado"), abogados.map(a => a.nombre));
     resultadosCatalogo = await cargarCatalogo("resultados_audiencia");
+    llenarSelectFiltro(document.getElementById("fResultado"), resultadosCatalogo.map(res => ({ value: res.id, texto: res.nombre })));
     await cargarDatosParaPoder();
 
     // Por defecto solo se ve de hoy en adelante; lo anterior queda oculto salvo
@@ -318,7 +310,7 @@
     document.getElementById("btnRefresh").addEventListener("click", cargarDatos);
     document.getElementById("btnExportar").addEventListener("click", exportarExcel);
     document.getElementById("btnLimpiar").addEventListener("click", limpiarFiltros);
-    ["fEstado","fAbogado"].forEach(id =>
+    ["fResultado","fAbogado"].forEach(id =>
       document.getElementById(id).addEventListener("input", renderTabla));
     // Buscar por texto es independiente de la fecha: mientras haya algo
     // escrito, el período queda en "Todos" (sin límite de fecha) para no
@@ -327,7 +319,7 @@
     // mientras el filtro por defecto solo muestra de hoy en adelante.
     document.getElementById("fBuscar").addEventListener("input", () => {
       if (document.getElementById("fBuscar").value.trim()) {
-        aplicarPeriodo("todos", document.querySelector('#periodoToggle button[data-periodo="todos"]'));
+        aplicarPeriodo("todos");
       } else {
         renderTabla();
       }
@@ -336,8 +328,10 @@
     // mano el rango deja de corresponder exactamente a "Hoy"/"Mañana"/etc.
     ["fDesde","fHasta"].forEach(id =>
       document.getElementById(id).addEventListener("input", () => { limpiarPeriodoActivo(); renderTabla(); }));
-    document.querySelectorAll("#periodoToggle button").forEach(btn =>
-      btn.addEventListener("click", () => aplicarPeriodo(btn.dataset.periodo, btn)));
+    document.getElementById("fPeriodo").addEventListener("change", () => {
+      const clave = document.getElementById("fPeriodo").value;
+      if (clave) aplicarPeriodo(clave);
+    });
 
     inicializarSelectorVista();
     inicializarSelectorColumnas();
@@ -540,43 +534,29 @@
     todos: () => ["", ""],
   };
 
-  function aplicarPeriodo(clave, btn) {
+  function aplicarPeriodo(clave) {
     const [desde, hasta] = RANGOS_PERIODO[clave]();
     document.getElementById("fDesde").value = desde;
     document.getElementById("fHasta").value = hasta;
-    // aria-pressed es la única fuente de verdad del estado activo (no hay
-    // clase ".active" aparte): así el estilo (.chip[aria-pressed="true"])
-    // y la semántica de accesibilidad nunca se pueden desincronizar.
-    document.querySelectorAll("#periodoToggle button").forEach(b =>
-      b.setAttribute("aria-pressed", b === btn ? "true" : "false"));
+    document.getElementById("fPeriodo").value = clave;
     renderTabla();
   }
 
   function limpiarPeriodoActivo() {
-    document.querySelectorAll("#periodoToggle button").forEach(b => b.setAttribute("aria-pressed", "false"));
+    document.getElementById("fPeriodo").value = "";
   }
 
+  // `valores` acepta strings simples (valor = texto, p.ej. nombres de abogados)
+  // u objetos {value, texto} cuando el valor guardado no es el mismo texto que
+  // se muestra (p.ej. Resultado, donde el valor es el id del catálogo).
   function llenarSelectFiltro(select, valores) {
     valores.forEach(v => {
+      const esObjeto = v && typeof v === "object";
       const opt = document.createElement("option");
-      opt.value = v; opt.textContent = v;
+      opt.value = esObjeto ? v.value : v;
+      opt.textContent = esObjeto ? v.texto : v;
       select.appendChild(opt);
     });
-  }
-
-  // Repuebla el select de Estado solo con los estados presentes en `filas`
-  // (ya filtradas por fecha/abogado/búsqueda), en vez de una lista fija.
-  function actualizarOpcionesEstado(filas) {
-    const select = document.getElementById("fEstado");
-    const valorActual = select.value;
-
-    const presentes = new Set(filas.map(r => r.estado).filter(Boolean));
-    const ordenados = ORDEN_ESTADOS.filter(e => presentes.has(e));
-    presentes.forEach(e => { if (!ordenados.includes(e)) ordenados.push(e); });
-
-    select.innerHTML = '<option value="">Todos</option>' +
-      ordenados.map(e => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join("");
-    select.value = ordenados.includes(valorActual) ? valorActual : "";
   }
 
   async function cargarDatos() {
@@ -748,7 +728,7 @@
     document.getElementById("fBuscar").value = "";
     document.getElementById("fDesde").value = fechaHoyISO();
     document.getElementById("fHasta").value = "";
-    document.getElementById("fEstado").value = "";
+    document.getElementById("fResultado").value = "";
     document.getElementById("fAbogado").value = "";
     limpiarPeriodoActivo();
     renderTabla();
@@ -764,22 +744,19 @@
     const hasta = document.getElementById("fHasta").value;
     const abogado = document.getElementById("fAbogado").value;
 
-    // Filtros de fecha/abogado/búsqueda primero: el filtro de Estado se calcula
-    // sobre lo que estos ya dejaron, para solo ofrecer estados que sí existan ahí.
-    const filasSinEstado = todasLasFilas.filter(r => {
+    const resultado = document.getElementById("fResultado").value;
+
+    const filas = todasLasFilas.filter(r => {
       if (desde && r.fecha < desde) return false;
       if (hasta && r.fecha > hasta) return false;
       if (abogado && r.abogado_titular !== abogado) return false;
+      if (resultado && r.resultado_audiencia_id !== resultado) return false;
       if (q) {
         const blob = normalize([r.radicado_proceso, r.nombre_procesado, r.nombre_persona_juridica, r.despacho].join(" "));
         if (blob.indexOf(q) === -1) return false;
       }
       return true;
     });
-
-    actualizarOpcionesEstado(filasSinEstado);
-    const estado = document.getElementById("fEstado").value;
-    const filas = estado ? filasSinEstado.filter(r => r.estado === estado) : filasSinEstado;
     filasVisibles = filas; // para exportarExcel(): exporta justo lo que se ve filtrado
 
     document.getElementById("scopeText").textContent =
