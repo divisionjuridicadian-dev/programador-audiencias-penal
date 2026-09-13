@@ -1301,6 +1301,27 @@
 
       cuerpoNuevo = cuerpoNuevo.split(`r:embed="${idViejo}"`).join(`r:embed="${idNuevo}"`);
 
+      // Word exige que <wp:docPr id="N"> sea único en TODO el documento, no
+      // solo dentro de word/document.xml — el logo del encabezado de la
+      // plantilla (header1.xml) y los textos de los pies de página
+      // (footer1/2/3.xml) ya usan sus propios ids. docx.js siempre arranca
+      // en 1 sin saber nada de eso, así que el id de la imagen generada
+      // (típicamente 1) choca con el del logo — esto es lo que hacía que
+      // Word marcara el documento como dañado. Se reasigna a uno libre.
+      const partesConDocPr = ["word/header1.xml", "word/footer1.xml", "word/footer2.xml", "word/footer3.xml"];
+      const docPrExistentes = [];
+      for (const parte of partesConDocPr) {
+        const archivo = zipPlantilla.file(parte);
+        if (!archivo) continue;
+        const contenido = await archivo.async("string");
+        [...contenido.matchAll(/<wp:docPr id="(\d+)"/g)].forEach(m => docPrExistentes.push(Number(m[1])));
+      }
+      const coincidenciaDocPr = cuerpoNuevo.match(/<wp:docPr id="(\d+)"/);
+      if (coincidenciaDocPr) {
+        const docPrNuevo = Math.max(0, ...docPrExistentes) + 1;
+        cuerpoNuevo = cuerpoNuevo.replace(`<wp:docPr id="${coincidenciaDocPr[1]}"`, `<wp:docPr id="${docPrNuevo}"`);
+      }
+
       const nuevaRelacion = `<Relationship Id="${idNuevo}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${targetImagen}"/>`;
       zipPlantilla.file("word/_rels/document.xml.rels", relsPlantillaXml.replace("</Relationships>", nuevaRelacion + "</Relationships>"));
 
