@@ -235,8 +235,20 @@
     document.getElementById("btnRefresh").addEventListener("click", cargarDatos);
     document.getElementById("btnExportar").addEventListener("click", exportarExcel);
     document.getElementById("btnLimpiar").addEventListener("click", limpiarFiltros);
-    ["fBuscar","fEstado","fAbogado"].forEach(id =>
+    ["fEstado","fAbogado"].forEach(id =>
       document.getElementById(id).addEventListener("input", renderTabla));
+    // Buscar por texto es independiente de la fecha: mientras haya algo
+    // escrito, el período queda en "Todos" (sin límite de fecha) para no
+    // esconder resultados que coincidan pero caigan fuera del rango de
+    // fecha activo — p. ej. buscar un radicado de una audiencia pasada
+    // mientras el filtro por defecto solo muestra de hoy en adelante.
+    document.getElementById("fBuscar").addEventListener("input", () => {
+      if (document.getElementById("fBuscar").value.trim()) {
+        aplicarPeriodo("todos", document.querySelector('#periodoToggle button[data-periodo="todos"]'));
+      } else {
+        renderTabla();
+      }
+    });
     // Desde/Hasta también limpian el período rápido activo: al tocarlos a
     // mano el rango deja de corresponder exactamente a "Hoy"/"Mañana"/etc.
     ["fDesde","fHasta"].forEach(id =>
