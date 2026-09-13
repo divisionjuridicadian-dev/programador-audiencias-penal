@@ -1094,8 +1094,40 @@
     }
   }
 
+  // Descarga la firma del abogado desde Supabase Storage (bucket "firmas",
+  // ver catalogos.html) y arma un ImageRun ya escalado — ancho fijo, alto
+  // según la proporción real de la imagen, con un tope para que una firma
+  // casi cuadrada no quede desproporcionadamente alta — lista para
+  // insertarla arriba de su nombre en el Poder. Si el abogado no tiene
+  // firma registrada, o algo falla al descargarla, devuelve null: el Poder
+  // se genera igual, solo con el nombre, como pasaba antes de esta función.
+  async function cargarImagenFirma(rutaFirma) {
+    if (!rutaFirma) return null;
+    try {
+      const { data: blob, error } = await db.storage.from("firmas").download(rutaFirma);
+      if (error || !blob) { console.error(error); return null; }
+      const buffer = await blob.arrayBuffer();
+      const dimensiones = await new Promise((resolve, reject) => {
+        const img = new Image();
+        img.onload = () => resolve({ ancho: img.naturalWidth, alto: img.naturalHeight });
+        img.onerror = reject;
+        img.src = URL.createObjectURL(blob);
+      });
+      const ANCHO_OBJETIVO = 170, ALTO_MAXIMO = 60;
+      let ancho = ANCHO_OBJETIVO, alto = ANCHO_OBJETIVO * (dimensiones.alto / dimensiones.ancho);
+      if (alto > ALTO_MAXIMO) { alto = ALTO_MAXIMO; ancho = ALTO_MAXIMO * (dimensiones.ancho / dimensiones.alto); }
+      const extension = (rutaFirma.split(".").pop() || "jpg").toLowerCase();
+      const tipo = ["png", "gif", "bmp"].includes(extension) ? extension : "jpg";
+      return new docx.ImageRun({ data: buffer, transformation: { width: Math.round(ancho), height: Math.round(alto) }, type: tipo });
+    } catch (e) {
+      console.error("No se pudo cargar la firma del abogado:", e);
+      return null;
+    }
+  }
+
   async function construirYDescargarPoder(r, directora, abogado) {
     const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType } = docx;
+    const imagenFirma = await cargarImagenFirma(abogado.ruta_firma);
 
     // Formato pedido para todo el documento: Arial 11 (22 en half-points,
     // que es como docx mide el tamaño de fuente) y justificado, salvo el
@@ -1192,6 +1224,7 @@
           parrafo((directora.nombres_completos || "").toUpperCase()),
           parrafo(directora.cargo || "", { spacing: { after: 400 } }),
           parrafo("ACEPTO:", { spacing: { after: 400 } }),
+          ...(imagenFirma ? [new Paragraph({ children: [imagenFirma], spacing: { after: 80 } })] : []),
           parrafo((abogado.nombre || "").toUpperCase()),
           parrafo(tituloAbogado),
           parrafo("División Jurídica"),
@@ -1227,8 +1260,9 @@
   }
 
   // Arma el .docx final insertando el cuerpo del documento ya generado por
-  // docx.js (párrafos y tabla, todos con formato directo — sin depender de
-  // estilos con nombre, así que da igual de qué documento vengan) dentro de
+  // docx.js (párrafos, tabla y, si el abogado tiene firma cargada, la
+  // imagen — todo con formato directo, sin depender de estilos con nombre,
+  // así que da igual de qué documento vengan) dentro de
   // assets/Plantilla_Poder.docx, conservando intacto todo lo demás de la
   // plantilla: encabezado (logo DIAN), pie de página (distinto en la
   // primera página que en las siguientes — la plantilla ya lo trae así) y
@@ -1241,7 +1275,7 @@
     const xmlGenerado = await zipGenerado.file("word/document.xml").async("string");
     const coincidenciaCuerpo = xmlGenerado.match(/<w:body>([\s\S]*?)<w:sectPr/);
     if (!coincidenciaCuerpo) throw new Error("No se pudo leer el cuerpo del documento generado.");
-    const cuerpoNuevo = coincidenciaCuerpo[1];
+    let cuerpoNuevo = coincidenciaCuerpo[1];
 
     const respuestaPlantilla = await fetch("assets/Plantilla_Poder.docx");
     if (!respuestaPlantilla.ok) throw new Error("No se pudo descargar assets/Plantilla_Poder.docx.");
@@ -1251,6 +1285,40 @@
     if (!/<w:body>[\s\S]*<w:sectPr/.test(xmlPlantilla)) {
       throw new Error("La plantilla no tiene la estructura <w:body>…<w:sectPr> esperada.");
     }
+
+    // Si el cuerpo generado trae una imagen (la firma del abogado), hay que
+    // traer también su relación (word/_rels/document.xml.rels), el archivo
+    // de word/media/ y declarar su extensión en [Content_Types].xml —
+    // reasignando el id de relación (rIdN) a uno que no choque con los que
+    // ya usa la plantilla (que trae relaciones propias, hasta rId14).
+    const relsGeneradoXml = await zipGenerado.file("word/_rels/document.xml.rels").async("string");
+    const coincidenciaImagen = relsGeneradoXml.match(/<Relationship Id="(rId\d+)" Type="[^"]*\/image" Target="(media\/[^"]+)"\/>/);
+    if (coincidenciaImagen) {
+      const [, idViejo, targetImagen] = coincidenciaImagen;
+      const relsPlantillaXml = await zipPlantilla.file("word/_rels/document.xml.rels").async("string");
+      const idsExistentes = [...relsPlantillaXml.matchAll(/Id="rId(\d+)"/g)].map(m => Number(m[1]));
+      const idNuevo = `rId${Math.max(0, ...idsExistentes) + 1}`;
+
+      cuerpoNuevo = cuerpoNuevo.split(`r:embed="${idViejo}"`).join(`r:embed="${idNuevo}"`);
+
+      const nuevaRelacion = `<Relationship Id="${idNuevo}" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/image" Target="${targetImagen}"/>`;
+      zipPlantilla.file("word/_rels/document.xml.rels", relsPlantillaXml.replace("</Relationships>", nuevaRelacion + "</Relationships>"));
+
+      const archivoImagen = await zipGenerado.file(`word/${targetImagen}`).async("uint8array");
+      zipPlantilla.file(`word/${targetImagen}`, archivoImagen);
+
+      // La plantilla ya declara "png" (por su propio logo) pero no
+      // necesariamente "jpg"/"jpeg", que es lo más común en una firma
+      // escaneada o fotografiada.
+      const extension = targetImagen.split(".").pop().toLowerCase();
+      const tiposMime = { jpg: "image/jpeg", jpeg: "image/jpeg", png: "image/png", gif: "image/gif", bmp: "image/bmp" };
+      const contentTypesXml = await zipPlantilla.file("[Content_Types].xml").async("string");
+      if (!contentTypesXml.includes(`Extension="${extension}"`)) {
+        const nuevoDefault = `<Default Extension="${extension}" ContentType="${tiposMime[extension] || "application/octet-stream"}"/>`;
+        zipPlantilla.file("[Content_Types].xml", contentTypesXml.replace("</Types>", nuevoDefault + "</Types>"));
+      }
+    }
+
     const xmlFinal = xmlPlantilla.replace(/<w:body>[\s\S]*?(<w:sectPr)/, "<w:body>" + cuerpoNuevo + "$1");
     zipPlantilla.file("word/document.xml", xmlFinal);
 

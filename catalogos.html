@@ -109,8 +109,8 @@
 
   <div class="card abogados-card">
     <div class="card-head">
-      <div><h2>Directoras Asignadas</h2><p>Quien otorga el poder (poderdante) al generar un Poder desde una audiencia</p></div>
-      <button class="btn-gold" type="button" onclick="abrirModalDirectora()">+ Agregar directora</button>
+      <div><h2>Directores Asignados</h2><p>Quien otorga el poder (poderdante) al generar un Poder desde una audiencia</p></div>
+      <button class="btn-gold" type="button" onclick="abrirModalDirectora()">+ Agregar director</button>
     </div>
     <div class="card-body">
       <div class="table-scroll">
@@ -205,9 +205,16 @@
               <option value="F">F</option>
             </select>
           </div>
-          <div class="field">
-            <label for="abogadoFirma">Ruta o enlace de la firma</label>
-            <input type="text" id="abogadoFirma" placeholder="Ruta del archivo o enlace a la imagen">
+          <div class="field span-2" id="campoFirma" style="display:none;">
+            <label>Firma</label>
+            <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+              <span class="muted" id="firmaEstado" style="font-size:12.5px;">Sin firma registrada.</span>
+              <img id="firmaPreviewImg" alt="Firma" style="display:none; max-height:42px; max-width:170px; object-fit:contain; border:1px solid var(--line); border-radius:4px; background:#fff; padding:3px 6px;">
+              <button type="button" class="btn-ghost" style="padding:5px 10px; font-size:12px;" onclick="document.getElementById('firmaArchivoInput').click()">Cargar firma</button>
+              <button type="button" class="link-danger" id="btnQuitarFirma" style="display:none; font-size:12px;" onclick="eliminarFirma()">Quitar firma</button>
+              <input type="file" id="firmaArchivoInput" accept="image/*" style="display:none;" onchange="manejarArchivoFirma(event)">
+            </div>
+            <span class="hint" id="firmaCargaEstado"></span>
           </div>
         </div>
         <div class="row" style="justify-content:flex-end; gap:8px; margin-top:20px;">
@@ -222,7 +229,7 @@
 <div class="modal-overlay" id="modalDirectora" onclick="if (event.target === this) cerrarModalDirectora();">
   <div class="modal-card" style="max-width:560px;">
     <div class="modal-head">
-      <h3 id="modalDirectoraTitulo">Agregar directora</h3>
+      <h3 id="modalDirectoraTitulo">Agregar director</h3>
       <button type="button" class="modal-close" title="Cerrar" onclick="cerrarModalDirectora()">✕</button>
     </div>
     <div class="modal-content">
@@ -326,11 +333,122 @@
       document.getElementById("abogadoCorreo").value = a.correo || "";
       document.getElementById("abogadoCelular").value = a.celular || "";
       document.getElementById("abogadoGenero").value = a.genero || "";
-      document.getElementById("abogadoFirma").value = a.ruta_firma || "";
+      // La firma solo se puede cargar editando un abogado ya guardado — la
+      // ruta en Storage se arma con su id (ver procesarArchivoFirma), que
+      // todavía no existe mientras se está creando uno nuevo.
+      document.getElementById("campoFirma").style.display = "";
+      mostrarEstadoFirma(a);
     } else {
       document.getElementById("modalAbogadoTitulo").textContent = "Agregar abogado";
+      document.getElementById("campoFirma").style.display = "none";
     }
     document.getElementById("modalAbogado").classList.add("show");
+  }
+
+  // ===== Firma del abogado: se sube a Supabase Storage (bucket "firmas")
+  // y solo se guarda su ruta en abogados.ruta_firma — así queda copiada
+  // dentro de la propia aplicación, sin depender de la ubicación original
+  // del archivo en el equipo de quien la cargó. =====
+  async function mostrarEstadoFirma(a) {
+    const estado = document.getElementById("firmaEstado");
+    const img = document.getElementById("firmaPreviewImg");
+    const btnQuitar = document.getElementById("btnQuitarFirma");
+    document.getElementById("firmaCargaEstado").textContent = "";
+    img.style.display = "none";
+    img.src = "";
+    if (!a.ruta_firma) {
+      estado.textContent = "Sin firma registrada.";
+      btnQuitar.style.display = "none";
+      return;
+    }
+    estado.textContent = "Cargando firma…";
+    btnQuitar.style.display = "";
+    const { data: blob, error } = await db.storage.from("firmas").download(a.ruta_firma);
+    if (error || !blob) {
+      console.error(error);
+      estado.textContent = "Firma registrada (no se pudo cargar la vista previa).";
+      return;
+    }
+    estado.textContent = "Firma registrada:";
+    img.src = URL.createObjectURL(blob);
+    img.style.display = "";
+  }
+
+  async function manejarArchivoFirma(event) {
+    const file = event.target.files[0];
+    event.target.value = ""; // para poder volver a elegir el mismo archivo más tarde
+    if (!file) return;
+    const abogadoId = document.getElementById("abogadoId").value;
+    if (!abogadoId) return; // no debería pasar: el campo está oculto sin id
+    if (!file.type.startsWith("image/")) {
+      showToast("La firma debe ser un archivo de imagen.", true);
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      showToast("La imagen pesa demasiado (máximo 5 MB).", true);
+      return;
+    }
+    await procesarArchivoFirma(abogadoId, file);
+  }
+
+  // Separada de manejarArchivoFirma() para poder probarla directo con un
+  // File armado a mano, sin depender de simular el <input type="file">.
+  async function procesarArchivoFirma(abogadoId, file) {
+    const estadoCarga = document.getElementById("firmaCargaEstado");
+    estadoCarga.className = "hint";
+    estadoCarga.textContent = "Subiendo firma…";
+    const extension = (file.name.split(".").pop() || "jpg").toLowerCase().replace(/[^a-z0-9]/g, "") || "jpg";
+    const rutaNueva = `${abogadoId}.${extension}`;
+
+    const abogado = todosLosAbogados.find(x => x.id === abogadoId);
+    // Si ya tenía una firma con otra extensión, se borra el archivo viejo
+    // para no dejarlo huérfano en el bucket (con la misma extensión,
+    // upsert:true de abajo ya la reemplaza sin necesidad de este paso).
+    if (abogado && abogado.ruta_firma && abogado.ruta_firma !== rutaNueva) {
+      await db.storage.from("firmas").remove([abogado.ruta_firma]);
+    }
+
+    const { error: errorSubida } = await db.storage.from("firmas")
+      .upload(rutaNueva, file, { upsert: true, contentType: file.type });
+    if (errorSubida) {
+      console.error(errorSubida);
+      estadoCarga.className = "hint error";
+      estadoCarga.textContent = "No se pudo subir la firma.";
+      return;
+    }
+
+    const { error: errorGuardar } = await db.from("abogados").update({ ruta_firma: rutaNueva }).eq("id", abogadoId);
+    if (errorGuardar) {
+      console.error(errorGuardar);
+      estadoCarga.className = "hint error";
+      estadoCarga.textContent = "La firma se subió, pero no se pudo guardar en el abogado.";
+      return;
+    }
+
+    if (abogado) abogado.ruta_firma = rutaNueva;
+    renderAbogados();
+    estadoCarga.textContent = "";
+    if (abogado) await mostrarEstadoFirma(abogado);
+    showToast("Firma cargada.");
+  }
+
+  async function eliminarFirma() {
+    const abogadoId = document.getElementById("abogadoId").value;
+    const abogado = todosLosAbogados.find(x => x.id === abogadoId);
+    if (!abogado || !abogado.ruta_firma) return;
+    const ok = await confirmarAccion("¿Quitar la firma de este abogado?", { titulo: "Quitar firma", textoConfirmar: "Quitar" });
+    if (!ok) return;
+
+    const { error: errorBorrar } = await db.storage.from("firmas").remove([abogado.ruta_firma]);
+    if (errorBorrar) { console.error(errorBorrar); showToast("No se pudo quitar la firma.", true); return; }
+
+    const { error: errorGuardar } = await db.from("abogados").update({ ruta_firma: null }).eq("id", abogadoId);
+    if (errorGuardar) { console.error(errorGuardar); showToast("No se pudo actualizar el abogado.", true); return; }
+
+    abogado.ruta_firma = null;
+    renderAbogados();
+    await mostrarEstadoFirma(abogado);
+    showToast("Firma eliminada.");
   }
 
   function cerrarModalAbogado() {
@@ -349,7 +467,8 @@
       correo: document.getElementById("abogadoCorreo").value.trim() || null,
       celular: document.getElementById("abogadoCelular").value.trim() || null,
       genero: document.getElementById("abogadoGenero").value || null,
-      ruta_firma: document.getElementById("abogadoFirma").value.trim() || null,
+      // ruta_firma NO se toca acá — se guarda al toque al cargar/quitar la
+      // firma (procesarArchivoFirma / eliminarFirma), no con "Guardar".
     };
     const { error } = id
       ? await db.from("abogados").update(datos).eq("id", id)
@@ -373,7 +492,7 @@
     cargarAbogados();
   }
 
-  // ===== Directoras Asignadas (poderdante del documento de Poder — ver
+  // ===== Directores Asignados (poderdante del documento de Poder — ver
   // "Generar Poder" en la tarjeta de cada audiencia, index.html) =====
   let todasLasDirectoras = [];
 
