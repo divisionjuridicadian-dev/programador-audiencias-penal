@@ -222,6 +222,30 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalRecordatorio" onclick="if (event.target === this) cerrarModalRecordatorio();">
+  <div class="modal-card" style="max-width:440px;">
+    <div class="modal-head">
+      <h3>Enviar Recordatorio</h3>
+      <button type="button" class="modal-close" title="Cerrar" onclick="cerrarModalRecordatorio()">✕</button>
+    </div>
+    <div class="modal-content">
+      <p class="muted" style="font-size:12.5px; margin:0 0 14px;">
+        Se envía un correo con los datos de la audiencia, un enlace para agregarla a Google Calendar
+        y un archivo .ics adjunto (compatible con Outlook, Apple Calendar y otras agendas).
+      </p>
+      <div class="field">
+        <label for="recordatorioCorreo">Correo de destino</label>
+        <input type="email" id="recordatorioCorreo" placeholder="abogado@dian.gov.co" />
+      </div>
+      <p class="hint" id="recordatorioEstado" style="margin-top:10px;"></p>
+      <div class="row" style="justify-content:flex-end; gap:8px; margin-top:20px;">
+        <button type="button" class="btn-ghost" onclick="cerrarModalRecordatorio()">Cancelar</button>
+        <button type="button" class="btn-gold" id="btnEnviarRecordatorio" onclick="confirmarEnviarRecordatorio()">Enviar correo</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <footer class="footer-note">Programador de Audiencias · Unidad Penal DIAN — datos en Supabase, acceso restringido al equipo</footer>
 
   </div>
@@ -236,6 +260,7 @@
   let abogadosCompletos = []; // registros completos (cédula, T.P., género, correo) para "Generar Poder"
   let directorasCatalogo = []; // directoras_asignadas activas (poderdante), para "Generar Poder"
   let poderAudienciaId = null;
+  let recordatorioAudienciaId = null; // audiencia a la que se le está por enviar un recordatorio por correo
 
   // Solo define el orden en que se muestran cuando existen; no limita cuáles
   // aparecen (cualquier estado que no esté aquí — p.ej. un resultado antiguo
@@ -804,6 +829,7 @@
             <div class="audiencia-card-resultado">${celdaResultado(r)}</div>
           </div>
           <div class="audiencia-card-actions">
+            <button class="btn-icon-edit" type="button" title="Enviar recordatorio por correo" onclick="abrirModalRecordatorio('${r.id}')">${ICONOS.correo}</button>
             <button class="btn-icon-edit" type="button" title="Generar Poder (.docx)" onclick="abrirModalPoder('${r.id}')">${ICONOS.documento}</button>
             <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">${ICONOS.editar}</button>
           </div>
@@ -1174,6 +1200,59 @@
     enlace.remove();
   }
 
+  // ===== "Enviar Recordatorio": correo al abogado con los datos de la
+  // audiencia, un enlace de "Agregar a Google Calendar" y un .ics adjunto —
+  // el envío real lo hace la Edge Function "enviar-recordatorio" (Resend). =====
+  function abrirModalRecordatorio(audienciaId) {
+    const r = todasLasFilas.find(x => x.id === audienciaId);
+    if (!r) return;
+    recordatorioAudienciaId = audienciaId;
+    // Mismo criterio que "Generar Poder": el abogado que reemplaza tiene
+    // prioridad sobre el titular si hay uno elegido para esta audiencia.
+    const nombreAbogado = r.abogado_reemplaza || r.abogado_titular;
+    const abogado = abogadosCompletos.find(a => a.nombre === nombreAbogado);
+    document.getElementById("recordatorioCorreo").value = (abogado && abogado.correo) || "";
+    document.getElementById("recordatorioEstado").textContent = "";
+    document.getElementById("modalRecordatorio").classList.add("show");
+  }
+
+  function cerrarModalRecordatorio() {
+    document.getElementById("modalRecordatorio").classList.remove("show");
+    recordatorioAudienciaId = null;
+  }
+
+  async function confirmarEnviarRecordatorio() {
+    const correo = document.getElementById("recordatorioCorreo").value.trim();
+    if (!correo) {
+      document.getElementById("recordatorioEstado").textContent = "Escribe un correo de destino.";
+      return;
+    }
+    const btn = document.getElementById("btnEnviarRecordatorio");
+    btn.disabled = true;
+    btn.textContent = "Enviando…";
+    document.getElementById("recordatorioEstado").textContent = "";
+    try {
+      const res = await fetch(`${SUPABASE_URL}/functions/v1/enviar-recordatorio`, {
+        method: "POST",
+        headers: { Authorization: `Bearer ${SUPABASE_ANON_KEY}`, apikey: SUPABASE_ANON_KEY, "Content-Type": "application/json" },
+        body: JSON.stringify({ audienciaId: recordatorioAudienciaId, correoDestino: correo }),
+      });
+      const data = await res.json();
+      if (data.ok) {
+        showToast("Recordatorio enviado a " + data.destinatario + ".");
+        cerrarModalRecordatorio();
+      } else {
+        document.getElementById("recordatorioEstado").textContent = data.mensaje || "No se pudo enviar el recordatorio.";
+      }
+    } catch (e) {
+      console.error(e);
+      document.getElementById("recordatorioEstado").textContent = "No se pudo conectar con el servidor de correo.";
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Enviar correo";
+    }
+  }
+
   // Nombre del procesado en negrita y, debajo, el de la persona jurídica en
   // gris (var(--ink-soft)) si también hay uno — ambos pueden existir a la vez.
   // En la tarjeta (opts.pjGrande) la persona jurídica va entre paréntesis y
@@ -1437,7 +1516,7 @@
   }
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { cerrarModalRamaJudicial(); cerrarModalNovedad(); cerrarModalPoder(); }
+    if (e.key === "Escape") { cerrarModalRamaJudicial(); cerrarModalNovedad(); cerrarModalPoder(); cerrarModalRecordatorio(); }
   });
 
   init();
