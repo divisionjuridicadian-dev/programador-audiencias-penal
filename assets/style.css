@@ -400,6 +400,14 @@ select.resultado-select:hover, select.resultado-select:focus{
 /* Sin fondo ni caja a propósito: va pegado al nombre del despacho, como si
    fuera parte del mismo dato, no como un bloque de información aparte. */
 .audiencia-card-correo-juzgado{font-size:11.5px; color:var(--ink-soft); margin-top:2px;}
+/* Fiscalía que conoce del proceso, justo debajo del Juzgado, y el nombre
+   del Fiscal debajo de esa — mismo patrón de "dato destacado + dato
+   secundario pegado abajo" que Despacho/Correo del juzgado. */
+.audiencia-card-fiscalia{
+  font-size:12.5px; font-weight:700; color:var(--blue); margin-top:5px;
+  white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:100%;
+}
+.audiencia-card-nombre-fiscal{font-size:11.5px; color:var(--ink-soft); margin-top:1px;}
 .audiencia-card-procesado{font-size:12.5px; margin-top:6px;}
 .audiencia-card-titular{font-size:13px; margin-top:5px;}
 .audiencia-card-titular strong{font-weight:700; font-size:13.5px; color:var(--violet);}

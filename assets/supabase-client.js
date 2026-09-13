@@ -113,6 +113,12 @@ function esTipoProcesado(tipo) {
   return PALABRAS_TIPO_PROCESADO.some(p => t.includes(p));
 }
 
+// "Fiscalía" en la tabla de Sujetos procesales de la Rama Judicial — se usa
+// para el clic que lleva el nombre al campo "Nombre del Fiscal".
+function esTipoFiscalia(tipo) {
+  return (tipo || "").toLowerCase().includes("fiscal");
+}
+
 function badgeClassForEstado(estado) {
   const e = (estado || "").toLowerCase();
   if (e === "audiencia hoy") return "badge-hoy";

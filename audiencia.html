@@ -116,6 +116,14 @@
               <label for="despacho">Despacho</label>
               <input type="text" id="despacho" placeholder="Ej. J 2 P CTO MED.">
             </div>
+            <div class="field span-2">
+              <label for="fiscalia">Fiscalía que conoce</label>
+              <input type="text" id="fiscalia" placeholder="Ej. FISCALIA 175 SECCIONAL">
+            </div>
+            <div class="field span-2">
+              <label for="nombreFiscal">Nombre del Fiscal</label>
+              <input type="text" id="nombreFiscal">
+            </div>
             <div class="field">
               <label for="departamento">Departamento</label>
               <input type="text" id="departamento">
@@ -423,6 +431,8 @@
     document.getElementById("horaFin").value = data.hora_fin ? data.hora_fin.slice(0,5) : "";
     document.getElementById("modalidad").value = data.modalidad || "Virtual";
     document.getElementById("despacho").value = data.despacho || "";
+    document.getElementById("fiscalia").value = data.fiscalia || "";
+    document.getElementById("nombreFiscal").value = data.nombre_fiscal || "";
     document.getElementById("departamento").value = data.departamento || "";
     document.getElementById("ciudad").value = data.ciudad || "";
     document.getElementById("delitoBase").value = data.delito_base || "";
@@ -449,6 +459,8 @@
       hora_fin: document.getElementById("horaFin").value || null,
       modalidad: document.getElementById("modalidad").value || "Virtual",
       despacho: document.getElementById("despacho").value || null,
+      fiscalia: document.getElementById("fiscalia").value || null,
+      nombre_fiscal: document.getElementById("nombreFiscal").value || null,
       departamento: document.getElementById("departamento").value || null,
       ciudad: document.getElementById("ciudad").value || null,
       delito_base: document.getElementById("delitoBase").value || null,
@@ -791,6 +803,7 @@
         apoderadoLimpio: apoderado.replace(/\s*-\s*PLANTA\s*$/i, "").trim(),
         actividades: String(fila[idx.actividades] || "").trim(),
         observaciones: String(fila[idx.observaciones] || "").trim(),
+        fiscalia: extraerFiscaliaDeObservaciones(fila[idx.observaciones]),
         nit: String(fila[idx.nit] || "").trim(),
         cc: String(fila[idx.cc] || "").trim(),
         estadoProceso: normalizarEstadoProcesoConsolidado(fila[idx.estado]),
@@ -805,6 +818,18 @@
   // limpio en el formulario.
   function limpiarPrefijoNumerico(valor) {
     return String(valor || "").replace(/^\d+\s+/, "").trim();
+  }
+
+  // La Fiscalía que conoce del proceso no tiene columna propia en el
+  // Consolidado — viene mezclada dentro de "Observaciones", como uno de sus
+  // segmentos separados por ";" (ej. "ACTIVO; FISCALIA 175 SECCIONAL" o
+  // "ACTIVO; FISCALIA GENERAL DE LA NACION; 01/09/2026 AUDIENCIA..."). Se
+  // busca el segmento que empieza con la palabra "FISCALIA" y se toma tal
+  // cual, con esa palabra incluida.
+  function extraerFiscaliaDeObservaciones(observaciones) {
+    const segmentos = String(observaciones || "").split(";");
+    const seg = segmentos.find(s => /^\s*FISCALIA\b/i.test(s));
+    return seg ? seg.trim() : "";
   }
 
   function parseNumeroConsolidado(valor) {
@@ -859,8 +884,8 @@
     const ok = await confirmarAccion(
       `¿Traer los datos de este proceso al formulario?\n\n"${r.nombreProcesado}" — ${r.radicado23}\n\n` +
       `Esto reemplaza Departamento, Ciudad, Delito base, Procesado, Cuantía, Apoderado titular, ` +
-      `Estado del proceso, Observaciones, NIT, CC y Contribuyente ya diligenciados. Recuerda hacer clic en ` +
-      `"Guardar audiencia" para confirmar los cambios.`,
+      `Estado del proceso, Observaciones, NIT, CC, Contribuyente y Fiscalía ya diligenciados. Recuerda ` +
+      `hacer clic en "Guardar audiencia" para confirmar los cambios.`,
       { titulo: "Traer datos del Consolidado", textoConfirmar: "Traer datos", peligro: false });
     if (!ok) return;
 
@@ -871,6 +896,7 @@
     // usable. Al dejar el campo vacío, el evento "input" de arriba ya
     // dispara la consulta automática a la Rama Judicial (más arriba en
     // este archivo), que si el radicado existe sí trae el despacho real.
+    document.getElementById("fiscalia").value = r.fiscalia;
     document.getElementById("departamento").value = r.departamento;
     document.getElementById("ciudad").value = r.ciudad;
     document.getElementById("delitoBase").value = r.delitoBase;

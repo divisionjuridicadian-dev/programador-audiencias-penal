@@ -812,6 +812,8 @@
             </div>
             <div class="audiencia-card-despacho" title="${escapeHtml(r.despacho || "Sin despacho")}">${copyText(r.id, "despacho", escapeHtml(r.despacho || "—"))}</div>
             ${correoJuzgado(r)}
+            ${r.fiscalia ? `<div class="audiencia-card-fiscalia" title="${escapeHtml(r.fiscalia)}">${copyText(r.id, "fiscalia", escapeHtml(r.fiscalia))}</div>` : ""}
+            ${r.nombre_fiscal ? `<div class="audiencia-card-nombre-fiscal" title="${escapeHtml(r.nombre_fiscal)}">${copyText(r.id, "nombre_fiscal", escapeHtml(r.nombre_fiscal))}</div>` : ""}
             <div class="audiencia-card-procesado">${celdaProcesado(r, { pjGrande: true })}</div>
             ${r.abogado_titular ? `<div class="audiencia-card-titular">Apoderado Titular: <strong>${escapeHtml(r.abogado_titular)}</strong></div>` : ""}
             ${r.abogado_reemplaza ? `<div class="muted" style="font-size:11.5px; margin-top:2px;">Reemplaza: ${escapeHtml(r.abogado_reemplaza)}</div>` : ""}
@@ -1429,6 +1431,33 @@
     showToast("Nombre del procesado actualizado.");
   }
 
+  // Igual que usarDemandadosRama(), pero para el/los sujeto(s) de tipo
+  // "Fiscalía" — llena Nombre del Fiscal de la audiencia.
+  async function usarFiscalRama() {
+    if (!fichaRamaData || !fichaRamaAudienciaId) return;
+    const fiscales = (fichaRamaData.sujetos || [])
+      .filter(s => esTipoFiscalia(s.tipo))
+      .map(s => s.nombre)
+      .filter(Boolean);
+    if (!fiscales.length) return;
+
+    const nombreFiscal = fiscales.join(" / ");
+    const ok = await confirmarAccion(`¿Establecer el nombre del Fiscal de esta audiencia como:\n\n"${nombreFiscal}"?`,
+      { titulo: "Actualizar nombre del Fiscal", textoConfirmar: "Establecer", peligro: false });
+    if (!ok) return;
+
+    const { error } = await db.from("audiencias").update({ nombre_fiscal: nombreFiscal }).eq("id", fichaRamaAudienciaId);
+    if (error) {
+      console.error(error);
+      showToast("No se pudo actualizar el nombre del Fiscal.", true);
+      return;
+    }
+    const fila = todasLasFilas.find(r => r.id === fichaRamaAudienciaId);
+    if (fila) fila.nombre_fiscal = nombreFiscal;
+    renderTabla();
+    showToast("Nombre del Fiscal actualizado.");
+  }
+
   // Doble clic en una fila de "Actuaciones" (ficha de la Rama Judicial):
   // la agrega como novedad de la audiencia — Novedad = nombre de la
   // actuación, Fecha = fecha de la actuación, Observación = anotación.
@@ -1493,12 +1522,15 @@
     if (d.sujetos && d.sujetos.length) {
       html += `<div style="margin-bottom:14px;">
         <div class="lbl" style="margin-bottom:6px;">Sujetos procesales</div>
-        <p class="muted" style="font-size:11px; margin:0 0 6px;">Clic en el tipo (Demandado, Indiciado, Causante…) para llevar ese nombre (o todos, si hay varios) al campo Nombre del procesado.</p>
+        <p class="muted" style="font-size:11px; margin:0 0 6px;">Clic en el tipo (Demandado, Indiciado, Causante…) para llevar ese nombre (o todos, si hay varios) al campo Nombre del procesado. Clic en Fiscalía para llevarlo a Nombre del Fiscal.</p>
         <div class="table-scroll"><table><thead><tr><th>Tipo</th><th>Nombre / Razón social</th></tr></thead><tbody>
           ${d.sujetos.map(s => {
             const esDemandado = esTipoProcesado(s.tipo);
+            const esFiscal = esTipoFiscalia(s.tipo);
             const tipoCelda = esDemandado
               ? `<span class="copyable" style="font-weight:700; color:var(--navy-700);" title="Clic para usar como nombre del procesado" onclick="usarDemandadosRama()">${escapeHtml(s.tipo)}</span>`
+              : esFiscal
+              ? `<span class="copyable" style="font-weight:700; color:var(--blue);" title="Clic para usar como nombre del Fiscal" onclick="usarFiscalRama()">${escapeHtml(s.tipo)}</span>`
               : escapeHtml(s.tipo);
             return `<tr><td>${tipoCelda}</td><td>${escapeHtml(s.nombre)}</td></tr>`;
           }).join("")}
