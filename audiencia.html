@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Audiencia · Programador · Unidad Penal DIAN</title>
 <link rel="stylesheet" href="assets/style.css">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <style>
   /* ===== "Construir Radicado": buscador de juzgado + resultado en vivo.
      Reutiliza el mismo look de .despachos-list de catalogos.html, pero
@@ -20,6 +21,10 @@
     padding:10px 12px; border:1px dashed var(--line); border-radius:6px; background:var(--paper-dim);
     font-family:var(--mono); font-size:15px; font-weight:700; color:var(--navy-900); letter-spacing:.02em;
   }
+  /* "Buscar en Consolidado" reutiliza .constructor-lista (mismo look que el
+     buscador de juzgados de arriba); acá solo se agrega el detalle extra
+     de cada fila (delito/ciudad/cuantía en gris, debajo del nombre). */
+  #consolidadoLista .desp-meta{margin-top:1px;}
 </style>
 </head>
 <body>
@@ -94,9 +99,10 @@
           <div class="field-grid">
             <div class="field span-2">
               <label for="radicado">Radicado del proceso</label>
-              <div class="row" style="gap:8px; align-items:flex-start;">
-                <input type="text" id="radicado" class="mono" inputmode="numeric" placeholder="23 dígitos, solo números" required style="flex:1;">
+              <div class="row" style="gap:8px; align-items:flex-start; flex-wrap:wrap;">
+                <input type="text" id="radicado" class="mono" inputmode="numeric" placeholder="23 dígitos, solo números" required style="flex:1; min-width:220px;">
                 <button type="button" class="btn-ghost" id="btnConstruirRadicado" style="flex:none; white-space:nowrap;">Construir Radicado</button>
+                <button type="button" class="btn-ghost" id="btnBuscarConsolidado" style="flex:none; white-space:nowrap;">Buscar en Consolidado</button>
               </div>
               <span class="hint" id="radicadoHint">23 dígitos, solo números.</span>
               <span class="hint" id="ramaEstadoConsulta"></span>
@@ -104,6 +110,18 @@
             <div class="field span-2">
               <label for="despacho">Despacho</label>
               <input type="text" id="despacho" placeholder="Ej. J 2 P CTO MED.">
+            </div>
+            <div class="field">
+              <label for="departamento">Departamento</label>
+              <input type="text" id="departamento">
+            </div>
+            <div class="field">
+              <label for="ciudad">Ciudad</label>
+              <input type="text" id="ciudad">
+            </div>
+            <div class="field span-2">
+              <label for="delitoBase">Delito(s) base</label>
+              <input type="text" id="delitoBase">
             </div>
             <div class="field">
               <label for="tipoAudiencia">Tipo de audiencia</label>
@@ -116,6 +134,14 @@
             <div class="field">
               <label for="cuantia">Cuantía</label>
               <input type="number" id="cuantia" step="1" min="0">
+            </div>
+            <div class="field">
+              <label for="estadoProceso">Estado del proceso</label>
+              <select id="estadoProceso">
+                <option value="">—</option>
+                <option value="Activo">Activo</option>
+                <option value="Terminado">Terminado</option>
+              </select>
             </div>
           </div>
         </div>
@@ -264,6 +290,35 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalConsolidado" onclick="if (event.target === this) cerrarConsolidado();">
+  <div class="modal-card" style="max-width:620px;">
+    <div class="modal-head">
+      <h3>Buscar en Consolidado</h3>
+      <button type="button" class="modal-close" title="Cerrar" onclick="cerrarConsolidado()">✕</button>
+    </div>
+    <div class="modal-content">
+      <div id="consolidadoPasoCarga">
+        <p class="muted" style="font-size:12.5px; margin:0 0 14px;">
+          Selecciona el archivo <strong>Consolidado.xlsx</strong> guardado en tu equipo. Se filtra
+          solo a procesos de Carlos Enrique Echeverry Sepúlveda en juzgados penales — hace falta
+          cargarlo una sola vez mientras no cierres esta pestaña.
+        </p>
+        <input type="file" id="consolidadoFileInput" accept=".xlsx,.xls">
+        <p class="hint" id="consolidadoCargaEstado" style="margin-top:10px;"></p>
+      </div>
+
+      <div id="consolidadoPasoBuscar" style="display:none;">
+        <div class="field">
+          <label for="consolidadoBuscar">Buscar por radicado o nombre del procesado</label>
+          <input type="text" id="consolidadoBuscar" placeholder="Escribe para buscar…">
+        </div>
+        <p class="muted" id="consolidadoResumen" style="font-size:11px; margin:6px 0;"></p>
+        <ul class="constructor-lista" id="consolidadoLista"></ul>
+      </div>
+    </div>
+  </div>
+</div>
+
   </div>
 </div>
 
@@ -282,6 +337,16 @@
   let ultimoRadicadoConsultado = null;
   let todosLosJuzgadosConstructor = [];
   let constructorJuzgadoElegido = null;
+  let consolidadoRegistros = null; // null = archivo aún no cargado esta sesión
+  let consolidadoActividadesPendiente = null; // "ACTIVIDADES ADELANTADAS" por guardar como novedad
+
+  // Igual que en index.html — se necesita acá también para fechar la
+  // novedad importada del Consolidado con la fecha local de hoy.
+  function fechaHoyISO() {
+    const d = new Date();
+    const sinOffset = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return sinOffset.toISOString().slice(0, 10);
+  }
 
   async function init() {
     const session = await requireSession();
@@ -314,7 +379,16 @@
     ["constructorAnio", "constructorCodigo"].forEach(id =>
       document.getElementById(id).addEventListener("input", actualizarResultadoConstructor));
     document.getElementById("constructorInstancia").addEventListener("change", actualizarResultadoConstructor);
-    document.addEventListener("keydown", (e) => { if (e.key === "Escape") cerrarConstructor(); });
+
+    document.getElementById("btnBuscarConsolidado").addEventListener("click", abrirConsolidado);
+    document.getElementById("consolidadoFileInput").addEventListener("change", manejarArchivoConsolidado);
+    document.getElementById("consolidadoBuscar").addEventListener("input", renderListaConsolidado);
+    document.getElementById("consolidadoLista").addEventListener("click", (e) => {
+      const li = e.target.closest("li[data-idx]");
+      if (li) elegirRegistroConsolidado(Number(li.dataset.idx));
+    });
+
+    document.addEventListener("keydown", (e) => { if (e.key === "Escape") { cerrarConstructor(); cerrarConsolidado(); } });
 
     if (audienciaId) {
       document.getElementById("formTitle").textContent = "Editar audiencia";
@@ -343,6 +417,10 @@
     document.getElementById("horaFin").value = data.hora_fin ? data.hora_fin.slice(0,5) : "";
     document.getElementById("modalidad").value = data.modalidad || "Virtual";
     document.getElementById("despacho").value = data.despacho || "";
+    document.getElementById("departamento").value = data.departamento || "";
+    document.getElementById("ciudad").value = data.ciudad || "";
+    document.getElementById("delitoBase").value = data.delito_base || "";
+    document.getElementById("estadoProceso").value = data.estado_proceso || "";
     document.getElementById("tipoAudiencia").value = data.tipo_audiencia_id || "";
     document.getElementById("resultado").value = data.resultado_audiencia_id || "";
     document.getElementById("abogadoTitular").value = data.abogado_titular_id || "";
@@ -365,6 +443,10 @@
       hora_fin: document.getElementById("horaFin").value || null,
       modalidad: document.getElementById("modalidad").value || "Virtual",
       despacho: document.getElementById("despacho").value || null,
+      departamento: document.getElementById("departamento").value || null,
+      ciudad: document.getElementById("ciudad").value || null,
+      delito_base: document.getElementById("delitoBase").value || null,
+      estado_proceso: document.getElementById("estadoProceso").value || null,
       tipo_audiencia_id: document.getElementById("tipoAudiencia").value || null,
       resultado_audiencia_id: document.getElementById("resultado").value || null,
       abogado_titular_id: document.getElementById("abogadoTitular").value || null,
@@ -396,11 +478,17 @@
     btn.textContent = "Guardando…";
 
     const payload = recolectar();
-    let error;
+    let error, idGuardado = audienciaId;
     if (audienciaId) {
       ({ error } = await db.from("audiencias").update(payload).eq("id", audienciaId));
     } else {
-      ({ error } = await db.from("audiencias").insert(payload));
+      // .select("id").single() para poder crear la novedad de "Actividades
+      // adelantadas" del Consolidado (si se trajo una) justo después de
+      // crear la audiencia — antes de guardar no existía ningún id al que
+      // asociarla.
+      const resultado = await db.from("audiencias").insert(payload).select("id").single();
+      error = resultado.error;
+      if (!error && resultado.data) idGuardado = resultado.data.id;
     }
 
     btn.disabled = false;
@@ -416,6 +504,16 @@
         showToast("No se pudo guardar la audiencia.", true);
       }
       return;
+    }
+
+    if (consolidadoActividadesPendiente && idGuardado) {
+      const { error: errorNovedad } = await db.from("novedades").insert({
+        audiencia_id: idGuardado,
+        novedad: consolidadoActividadesPendiente,
+        fecha: fechaHoyISO(),
+        observacion: "Importado automáticamente desde el Consolidado.",
+      });
+      if (errorNovedad) console.error(errorNovedad);
     }
     window.location.href = "index.html";
   }
@@ -582,6 +680,212 @@
 
   function cerrarConstructor() {
     document.getElementById("modalConstructor").classList.remove("show");
+  }
+
+  // ===== "Buscar en Consolidado": trae Departamento, Ciudad, Delito(s)
+  // base, Nombre del procesado, Cuantía, Apoderado titular, Estado del
+  // proceso, Observaciones, NIT, CC y Contribuyente desde el Excel de
+  // inventario de la Unidad Penal (Consolidado.xlsx, hoja "Base"), para no
+  // volver a escribir a mano lo que ya está en ese inventario cuando llega
+  // una audiencia para agendar. Mismo archivo que usa
+  // Inventario_Unidad_Penal.html, cargado acá también a mano (un sitio
+  // estático en GitHub Pages no puede leer un archivo de la máquina del
+  // usuario sin que la persona lo seleccione) — se procesa una sola vez
+  // por sesión de la página, igual que carga-masiva.html con sus archivos.
+  //
+  // Nombres reales de columnas en la hoja "Base" (revisado directamente en
+  // el archivo): si el Consolidado cambia sus encabezados, esto hay que
+  // actualizarlo acá.
+  const COLUMNAS_CONSOLIDADO = {
+    radicado: "NRO. PROCESO", despacho: "DESPACHO", departamento: "DEPARTAMENTO", ciudad: "CIUDAD",
+    delitoBase: "DELITO(S) BASE", nombreProcesado: "NOMBRE PROCESADOS", cuantia: "CUANTÍA",
+    apoderado: "APODERADO", actividades: "ACTIVIDADES ADELANTADAS", observaciones: "OBSERVACIONES",
+    nit: "NIT", cc: "CC", estado: "ESTADO", contribuyente: "CONTRIBUYENTE",
+  };
+  const APODERADO_CONSOLIDADO = "CARLOS ENRIQUE ECHEVERRY SEPULVEDA";
+
+  function abrirConsolidado() {
+    document.getElementById("modalConsolidado").classList.add("show");
+    if (consolidadoRegistros) {
+      mostrarPasoBuscarConsolidado();
+    } else {
+      document.getElementById("consolidadoPasoCarga").style.display = "";
+      document.getElementById("consolidadoPasoBuscar").style.display = "none";
+      document.getElementById("consolidadoCargaEstado").textContent = "";
+    }
+  }
+
+  function cerrarConsolidado() {
+    document.getElementById("modalConsolidado").classList.remove("show");
+  }
+
+  // Si el radicado ya tiene algo escrito (editando una audiencia, o
+  // "actualizando" una ya creada), se precarga la búsqueda con sus primeros
+  // 21 dígitos para encontrar el proceso correspondiente de una vez —
+  // ver el pedido de poder "actualizar con la base de datos" las que ya
+  // están agregadas.
+  function mostrarPasoBuscarConsolidado() {
+    document.getElementById("consolidadoPasoCarga").style.display = "none";
+    document.getElementById("consolidadoPasoBuscar").style.display = "";
+    const radicadoActual = document.getElementById("radicado").value.replace(/\D/g, "");
+    document.getElementById("consolidadoBuscar").value = radicadoActual ? radicadoActual.slice(0, 21) : "";
+    renderListaConsolidado();
+    document.getElementById("consolidadoBuscar").focus();
+  }
+
+  async function manejarArchivoConsolidado(e) {
+    const file = e.target.files[0];
+    if (!file) return;
+    const estado = document.getElementById("consolidadoCargaEstado");
+    estado.className = "hint";
+    estado.textContent = "Leyendo el archivo…";
+    try {
+      const buffer = await file.arrayBuffer();
+      const wb = XLSX.read(buffer, { type: "array" });
+      const nombreHoja = wb.SheetNames.includes("Base") ? "Base" : wb.SheetNames[0];
+      const filas = XLSX.utils.sheet_to_json(wb.Sheets[nombreHoja], { header: 1, raw: true, defval: "" });
+      consolidadoRegistros = procesarConsolidado(filas);
+      estado.className = "hint ok";
+      estado.textContent = `Cargado: ${consolidadoRegistros.length} procesos de ${APODERADO_CONSOLIDADO} en juzgados penales.`;
+      mostrarPasoBuscarConsolidado();
+    } catch (err) {
+      console.error(err);
+      estado.className = "hint error";
+      estado.textContent = "No se pudo leer el archivo. Verifica que sea el Consolidado.xlsx correcto.";
+    }
+  }
+
+  function procesarConsolidado(filas) {
+    if (!filas.length) return [];
+    const encabezados = filas[0].map(h => String(h || "").toUpperCase().trim());
+    const idx = {};
+    Object.entries(COLUMNAS_CONSOLIDADO).forEach(([clave, nombre]) => {
+      idx[clave] = encabezados.indexOf(nombre);
+    });
+    const registros = [];
+    for (let i = 1; i < filas.length; i++) {
+      const fila = filas[i];
+      if (!fila || !fila.length) continue;
+      const apoderado = String(fila[idx.apoderado] || "").trim();
+      const despacho = String(fila[idx.despacho] || "").trim();
+      if (!apoderado.toUpperCase().includes(APODERADO_CONSOLIDADO)) continue;
+      if (!despacho.toUpperCase().includes("JUZGADO PENAL")) continue;
+      const digitos = String(fila[idx.radicado] || "").replace(/\D/g, "");
+      registros.push({
+        radicado21: digitos,
+        radicado23: digitos.length === 21 ? digitos + "00" : digitos,
+        despacho,
+        departamento: limpiarPrefijoNumerico(fila[idx.departamento]),
+        ciudad: limpiarPrefijoNumerico(fila[idx.ciudad]),
+        delitoBase: String(fila[idx.delitoBase] || "").trim(),
+        nombreProcesado: String(fila[idx.nombreProcesado] || "").trim(),
+        cuantia: parseNumeroConsolidado(fila[idx.cuantia]),
+        apoderadoLimpio: apoderado.replace(/\s*-\s*PLANTA\s*$/i, "").trim(),
+        actividades: String(fila[idx.actividades] || "").trim(),
+        observaciones: String(fila[idx.observaciones] || "").trim(),
+        nit: String(fila[idx.nit] || "").trim(),
+        cc: String(fila[idx.cc] || "").trim(),
+        estadoProceso: normalizarEstadoProcesoConsolidado(fila[idx.estado]),
+        contribuyente: String(fila[idx.contribuyente] || "").trim(),
+      });
+    }
+    return registros;
+  }
+
+  // El Consolidado trae Departamento/Ciudad con un código DANE numérico
+  // adelante (ej. "5001 MEDELLÍN - ANTIOQUIA") — se quita para que quede
+  // limpio en el formulario.
+  function limpiarPrefijoNumerico(valor) {
+    return String(valor || "").replace(/^\d+\s+/, "").trim();
+  }
+
+  function parseNumeroConsolidado(valor) {
+    if (typeof valor === "number") return valor;
+    const limpio = String(valor || "").replace(/[^\d.-]/g, "");
+    const n = parseFloat(limpio);
+    return isNaN(n) ? null : n;
+  }
+
+  // Solo se acepta "Activo"/"Terminado" (lo que exige la restricción de la
+  // base de datos) — cualquier otro valor se deja vacío en vez de
+  // arriesgar un error al guardar.
+  function normalizarEstadoProcesoConsolidado(valor) {
+    const v = String(valor || "").toUpperCase();
+    if (v.includes("ACTIVO")) return "Activo";
+    if (v.includes("TERMINADO")) return "Terminado";
+    return "";
+  }
+
+  function renderListaConsolidado() {
+    if (!consolidadoRegistros) return;
+    const q = document.getElementById("consolidadoBuscar").value.trim().toUpperCase();
+    const ul = document.getElementById("consolidadoLista");
+    const resumen = document.getElementById("consolidadoResumen");
+    const filtrados = q
+      ? consolidadoRegistros.filter((r, i) => r.radicado21.includes(q) ||
+          r.nombreProcesado.toUpperCase().includes(q) || r.contribuyente.toUpperCase().includes(q))
+      : consolidadoRegistros;
+    resumen.textContent = q
+      ? `${filtrados.length} de ${consolidadoRegistros.length} procesos coinciden.`
+      : `${consolidadoRegistros.length} procesos cargados — escribe para buscar.`;
+    const limitados = filtrados.slice(0, 50);
+    ul.innerHTML = limitados.map(r => `
+      <li data-idx="${consolidadoRegistros.indexOf(r)}">
+        <div class="desp-nombre">${escapeHtml(r.nombreProcesado || "(sin nombre)")}</div>
+        <div class="desp-meta">${escapeHtml(r.radicado23)} · ${escapeHtml(r.delitoBase || "—")}</div>
+        <div class="desp-meta">${escapeHtml(r.ciudad || "—")} · ${r.cuantia != null ? formatCuantia(r.cuantia) : "—"}</div>
+      </li>
+    `).join("") || '<li class="muted" style="cursor:default;">Sin resultados.</li>';
+    if (!q && consolidadoRegistros.length > 50) {
+      ul.insertAdjacentHTML("beforeend", `<li class="muted" style="cursor:default;">Escribe para acotar entre los ${consolidadoRegistros.length} procesos…</li>`);
+    }
+  }
+
+  async function elegirRegistroConsolidado(idx) {
+    const r = consolidadoRegistros[idx];
+    if (!r) return;
+    if (r.radicado23.length !== 23) {
+      showToast("Este proceso no tiene un radicado de 23 dígitos válido en el Consolidado.", true);
+      return;
+    }
+    const ok = await confirmarAccion(
+      `¿Traer los datos de este proceso al formulario?\n\n"${r.nombreProcesado}" — ${r.radicado23}\n\n` +
+      `Esto reemplaza Despacho, Departamento, Ciudad, Delito base, Procesado, Cuantía, Apoderado titular, ` +
+      `Estado del proceso, Observaciones, NIT, CC y Contribuyente ya diligenciados. Recuerda hacer clic en ` +
+      `"Guardar audiencia" para confirmar los cambios.`,
+      { titulo: "Traer datos del Consolidado", textoConfirmar: "Traer datos", peligro: false });
+    if (!ok) return;
+
+    document.getElementById("radicado").value = r.radicado23;
+    document.getElementById("radicado").dispatchEvent(new Event("input"));
+    document.getElementById("despacho").value = r.despacho;
+    document.getElementById("departamento").value = r.departamento;
+    document.getElementById("ciudad").value = r.ciudad;
+    document.getElementById("delitoBase").value = r.delitoBase;
+    document.getElementById("nombreProcesado").value = r.nombreProcesado;
+    if (r.cuantia != null) document.getElementById("cuantia").value = r.cuantia;
+    document.getElementById("estadoProceso").value = r.estadoProceso;
+    document.getElementById("observaciones").value = r.observaciones;
+    document.getElementById("nitPersonaJuridica").value = r.nit;
+    document.getElementById("idProcesado").value = r.cc;
+    document.getElementById("nombrePersonaJuridica").value = r.contribuyente;
+
+    // Abogado titular: se busca por nombre (sin " - PLANTA") en el catálogo
+    // ya cargado en el select. Si no hay coincidencia exacta, se deja como
+    // estaba — no hay nada más específico que intentar.
+    const selectAbogado = document.getElementById("abogadoTitular");
+    const opcion = [...selectAbogado.options].find(o =>
+      o.textContent.trim().toUpperCase() === r.apoderadoLimpio.toUpperCase());
+    if (opcion) selectAbogado.value = opcion.value;
+
+    // "Actividades adelantadas" se guarda como novedad, pero recién se
+    // puede insertar cuando la audiencia ya tiene id en la base de datos —
+    // si es una audiencia nueva, se guarda en memoria y se agrega justo
+    // después de crearla (ver guardar()).
+    consolidadoActividadesPendiente = r.actividades || null;
+
+    cerrarConsolidado();
+    showToast("Datos del Consolidado aplicados al formulario.");
   }
 
   init();
