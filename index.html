@@ -9,6 +9,8 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@9.7.1/dist/index.iife.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/5.0.8/jspdf.plugin.autotable.min.js"></script>
 </head>
 <body>
 
@@ -212,12 +214,19 @@
     </div>
     <div class="modal-content">
       <p class="muted" style="font-size:12.5px; margin:0 0 14px;">
-        Se genera un documento de Word (.docx) con base en el formato de Poder de la DIAN, tomando
-        los datos de esta audiencia y del abogado titular (o el que reemplaza, si hay uno elegido).
+        Se genera un documento con base en el formato de Poder de la DIAN, tomando los datos de esta
+        audiencia y del abogado titular (o el que reemplaza, si hay uno elegido).
       </p>
       <div class="field">
         <label for="poderDirectora">Directora Asignada (poderdante)</label>
         <select id="poderDirectora"></select>
+      </div>
+      <div class="field">
+        <label for="poderFormato">Formato</label>
+        <select id="poderFormato">
+          <option value="word">Word (.docx)</option>
+          <option value="pdf">PDF</option>
+        </select>
       </div>
       <p class="hint" id="poderEstado" style="margin-top:10px;"></p>
       <div class="row" style="justify-content:flex-end; gap:8px; margin-top:20px;">
@@ -1040,6 +1049,7 @@
     const select = document.getElementById("poderDirectora");
     select.innerHTML = directorasCatalogo
       .map(d => `<option value="${d.id}">${escapeHtml(d.nombres_completos)}</option>`).join("");
+    document.getElementById("poderFormato").value = "word"; // por defecto, cada vez que se abre
     document.getElementById("poderEstado").textContent = directorasCatalogo.length
       ? ""
       : "No hay ninguna Directora Asignada activa — agrega una en Catálogos antes de generar el Poder.";
@@ -1078,11 +1088,13 @@
       return;
     }
 
+    const formato = document.getElementById("poderFormato").value;
     const btn = document.getElementById("btnGenerarPoder");
     btn.disabled = true;
     btn.textContent = "Generando…";
     try {
-      await construirYDescargarPoder(r, directora, abogado);
+      if (formato === "pdf") await construirYDescargarPoderPDF(r, directora, abogado);
+      else await construirYDescargarPoder(r, directora, abogado);
       cerrarModalPoder();
       showToast("Poder generado.");
     } catch (e) {
@@ -1095,13 +1107,13 @@
   }
 
   // Descarga la firma del abogado desde Supabase Storage (bucket "firmas",
-  // ver catalogos.html) y arma un ImageRun ya escalado — ancho fijo, alto
-  // según la proporción real de la imagen, con un tope para que una firma
-  // casi cuadrada no quede desproporcionadamente alta — lista para
-  // insertarla arriba de su nombre en el Poder. Si el abogado no tiene
+  // ver catalogos.html) y devuelve sus bytes + dimensiones ya escaladas —
+  // ancho fijo, alto según la proporción real de la imagen, con un tope
+  // para que una firma casi cuadrada no quede desproporcionadamente alta.
+  // La usan tanto el Poder en Word como en PDF. Si el abogado no tiene
   // firma registrada, o algo falla al descargarla, devuelve null: el Poder
   // se genera igual, solo con el nombre, como pasaba antes de esta función.
-  async function cargarImagenFirma(rutaFirma) {
+  async function descargarFirmaEscalada(rutaFirma) {
     if (!rutaFirma) return null;
     try {
       const { data: blob, error } = await db.storage.from("firmas").download(rutaFirma);
@@ -1118,11 +1130,19 @@
       if (alto > ALTO_MAXIMO) { alto = ALTO_MAXIMO; ancho = ALTO_MAXIMO * (dimensiones.ancho / dimensiones.alto); }
       const extension = (rutaFirma.split(".").pop() || "jpg").toLowerCase();
       const tipo = ["png", "gif", "bmp"].includes(extension) ? extension : "jpg";
-      return new docx.ImageRun({ data: buffer, transformation: { width: Math.round(ancho), height: Math.round(alto) }, type: tipo });
+      return { buffer, tipo, ancho: Math.round(ancho), alto: Math.round(alto) };
     } catch (e) {
       console.error("No se pudo cargar la firma del abogado:", e);
       return null;
     }
+  }
+
+  // Arma el ImageRun (docx.js) a partir de la firma ya descargada/escalada,
+  // lista para insertarla arriba del nombre del abogado en el Poder en Word.
+  async function cargarImagenFirma(rutaFirma) {
+    const firma = await descargarFirmaEscalada(rutaFirma);
+    if (!firma) return null;
+    return new docx.ImageRun({ data: firma.buffer, transformation: { width: firma.ancho, height: firma.alto }, type: firma.tipo });
   }
 
   async function construirYDescargarPoder(r, directora, abogado) {
@@ -1347,6 +1367,173 @@
       type: "blob",
       mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
     });
+  }
+
+  // Convierte un ArrayBuffer a base64 — lo usan tanto la fuente incrustada
+  // como el logo del Poder en PDF.
+  function bufferABase64(buffer) {
+    let binario = "";
+    const bytes = new Uint8Array(buffer);
+    for (let i = 0; i < bytes.length; i += 0x2000) binario += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x2000));
+    return btoa(binario);
+  }
+
+  // ===== "Generar Poder" en PDF: mismo contenido que el Word (texto,
+  // cuadro, firma), armado aparte con jsPDF — el .docx aprovecha la
+  // plantilla real (logo/pie de página oficiales), pero no hay forma
+  // liviana de convertir ese .docx a PDF dentro del navegador, así que acá
+  // se arma un documento nuevo con la misma información. Las 14 fuentes
+  // base de jsPDF (helvetica, etc.) no manejan bien los acentos/ñ, por eso
+  // se incrusta Roboto (assets/Roboto-Regular.ttf y -Bold.ttf, licencia
+  // Apache 2.0, con métricas muy parecidas a Arial). =====
+  async function construirYDescargarPoderPDF(r, directora, abogado) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "letter" });
+
+    const [regularBuf, boldBuf] = await Promise.all([
+      fetch("assets/Roboto-Regular.ttf").then(res => res.arrayBuffer()),
+      fetch("assets/Roboto-Bold.ttf").then(res => res.arrayBuffer()),
+    ]);
+    doc.addFileToVFS("Roboto-Regular.ttf", bufferABase64(regularBuf));
+    doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
+    doc.addFileToVFS("Roboto-Bold.ttf", bufferABase64(boldBuf));
+    doc.addFont("Roboto-Bold.ttf", "Roboto", "bold");
+
+    const FUENTE = "Roboto";
+    const TAMANO = 11, TAMANO_TABLA = 10;
+    const MARGEN = 56;
+    const ANCHO_PAGINA = doc.internal.pageSize.getWidth();
+    const ALTO_PAGINA = doc.internal.pageSize.getHeight();
+    const ANCHO_UTIL = ANCHO_PAGINA - MARGEN * 2;
+    const PIE_DESDE = ALTO_PAGINA - 40;
+    let y = MARGEN;
+
+    function saltoDePaginaSiHaceFalta(alturaNecesaria) {
+      if (y + alturaNecesaria > PIE_DESDE) { doc.addPage(); y = MARGEN; }
+    }
+
+    function parrafo(texto, opts) {
+      opts = opts || {};
+      const tam = opts.tamano || TAMANO;
+      doc.setFont(FUENTE, opts.negrita ? "bold" : "normal");
+      doc.setFontSize(tam);
+      const interlineado = tam * 1.3;
+      const lineas = doc.splitTextToSize(texto || "", ANCHO_UTIL);
+      saltoDePaginaSiHaceFalta(lineas.length * interlineado);
+      doc.text(texto || "", MARGEN, y, { maxWidth: ANCHO_UTIL, align: opts.align || "justify" });
+      y += lineas.length * interlineado + (opts.espacioDespues || 0);
+    }
+
+    const esFemenino = (abogado.genero || "").toUpperCase() === "F";
+    const alAbogado = esFemenino ? "a la abogada" : "al abogado";
+    const identificadoA = esFemenino ? "identificada" : "identificado";
+    const facultadoA = esFemenino ? "facultada" : "facultado";
+    const apoderadoA = esFemenino ? "a la apoderada" : "al apoderado";
+    const tituloAbogado = esFemenino ? "Abogada G.I.T. Unidad Penal" : "Abogado G.I.T. Unidad Penal";
+
+    // Logo de la DIAN arriba a la izquierda (la misma imagen de la plantilla de Word).
+    try {
+      const logoBuf = await fetch("assets/logo_poder.png").then(res => res.arrayBuffer());
+      doc.addImage(new Uint8Array(logoBuf), "PNG", MARGEN, y, 46, 46);
+    } catch (e) {
+      console.error("No se pudo cargar el logo para el PDF:", e);
+    }
+    y += 62;
+
+    parrafo(`Medellín, ${formatFechaLargaSinDia(fechaHoyISO())}`, { espacioDespues: 12 });
+    parrafo("Señor (a) Juez");
+    parrafo(r.despacho || "—");
+    parrafo(r.ciudad || "—", { espacioDespues: 12 });
+
+    const filasTabla = [
+      ["ASUNTO", "PODER"],
+      ["DENUNCIANTE", "U.A.E. DIAN. (Dirección de Impuestos y Aduanas Nacionales)"],
+      ["DENUNCIADO", [r.nombre_procesado || "—", r.id_procesado ? `C.C. ${r.id_procesado}` : ""].filter(Boolean).join(" ")],
+    ];
+    if (r.nombre_persona_juridica) {
+      filasTabla.push(["ENTE JURÍDICO", [r.nombre_persona_juridica, r.nit_persona_juridica ? `NIT ${r.nit_persona_juridica}` : ""].filter(Boolean).join(" ")]);
+    }
+    filasTabla.push(["PRESUNTO DELITO", r.delito_base || "—"]);
+    filasTabla.push(["SPOA", r.radicado_proceso || "—"]);
+
+    saltoDePaginaSiHaceFalta(filasTabla.length * 22);
+    doc.autoTable({
+      startY: y,
+      margin: { left: MARGEN, right: MARGEN },
+      body: filasTabla,
+      theme: "grid",
+      styles: { font: FUENTE, fontSize: TAMANO_TABLA, cellPadding: 5, lineColor: [0, 0, 0], lineWidth: 0.5 },
+      columnStyles: { 0: { fontStyle: "bold", cellWidth: ANCHO_UTIL * 0.22 } },
+    });
+    y = doc.lastAutoTable.finalY + 14;
+
+    parrafo(
+      `${directora.nombres_completos}, mayor de edad, identificada con cédula de ciudadanía Nº ${directora.identificacion || "—"}, ` +
+      `actuando como ${directora.cargo || "Directora Asignada"} de la Dirección Seccional de Impuestos de Medellín, según Resolución ` +
+      `${directora.resolucion || "—"} del ${formatFechaLargaSinDia(directora.fecha_resolucion)}, debidamente facultada por los Arts. 46 y 47 ` +
+      `de la resolución N° 000091 del 3 de septiembre de 2021, proferida por el Director General de Impuestos y Aduanas Nacionales, ` +
+      `por medio de este escrito manifiesto que confiero poder especial, amplio y suficiente ${alAbogado} ${abogado.nombre}, ${identificadoA} ` +
+      `con C.C. N° ${abogado.cedula || "—"} y T.P.N° ${abogado.tarjeta_profesional || "—"} del C.S. de la Judicatura, con el fin de representar ` +
+      `a la NACION-U.A.E. DIRECCIÓN DE IMPUESTOS Y ADUANAS NACIONALES, en calidad de VÍCTIMA, dentro del proceso de la referencia.`,
+      { espacioDespues: 14 }
+    );
+    parrafo(
+      `El profesional del derecho queda ${facultadoA} para transigir; conciliar judicial y extrajudicialmente; desistir previa ` +
+      `autorización del competente; e interponer recursos; participar en la práctica de los medios de prueba o contradicción que se ` +
+      `estimen pertinentes, de acuerdo con los procedimientos legales y las instrucciones del Comité de Conciliación y Defensa Judicial ` +
+      `y demás consagradas en el artículo 77 del C.G.P., para la eficaz representación de los intereses de la DIAN.`,
+      { espacioDespues: 14 }
+    );
+    parrafo(
+      `Sírvase señor Juez, reconocer personería ${apoderadoA}, dentro de los términos y para los efectos consagrados en este mandato.`,
+      { espacioDespues: 22 }
+    );
+
+    parrafo((directora.nombres_completos || "").toUpperCase(), { align: "left" });
+    parrafo(directora.cargo || "", { align: "left", espacioDespues: 16 });
+    parrafo("ACEPTO:", { align: "left", espacioDespues: 16 });
+
+    const firma = await descargarFirmaEscalada(abogado.ruta_firma);
+    if (firma) {
+      try {
+        const formatoImagen = firma.tipo === "png" ? "PNG" : firma.tipo === "gif" ? "GIF" : "JPEG";
+        saltoDePaginaSiHaceFalta(firma.alto + 6);
+        doc.addImage(new Uint8Array(firma.buffer), formatoImagen, MARGEN, y, firma.ancho, firma.alto);
+        y += firma.alto + 6;
+      } catch (e) {
+        console.error("No se pudo insertar la firma en el PDF:", e);
+      }
+    }
+
+    parrafo((abogado.nombre || "").toUpperCase(), { align: "left" });
+    parrafo(tituloAbogado, { align: "left" });
+    parrafo("División Jurídica", { align: "left" });
+    parrafo("Dirección Seccional de Impuestos de Medellín", { align: "left" });
+    parrafo(abogado.correo || "", { align: "left" });
+
+    // Pie de página en cada hoja — mismo texto que trae la plantilla de
+    // Word (sección 7.31): corto en la primera página, completo en las
+    // siguientes.
+    const totalPaginas = doc.internal.getNumberOfPages();
+    for (let pagina = 1; pagina <= totalPaginas; pagina++) {
+      doc.setPage(pagina);
+      doc.setFont(FUENTE, "normal");
+      doc.setFontSize(8);
+      const textoPie = pagina === 1
+        ? "Información Pública Clasificada"
+        : "Dirección Seccional de Impuestos de Medellín — Carrera 52 # 42-43. Alpujarra | 6042836160 - 3009141962 — " +
+          "Código postal 050015 — www.dian.gov.co — Información Pública Clasificada";
+      doc.text(textoPie, ANCHO_PAGINA - MARGEN, ALTO_PAGINA - 24, { align: "right", maxWidth: ANCHO_UTIL });
+    }
+
+    const nombreArchivo = `Poder_${(r.radicado_proceso || "audiencia").replace(/\D/g, "") || "audiencia"}.pdf`;
+    const blob = doc.output("blob");
+    const enlace = document.createElement("a");
+    enlace.href = URL.createObjectURL(blob);
+    enlace.download = nombreArchivo;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
   }
 
   // ===== "Enviar Recordatorio": correo al abogado con los datos de la
