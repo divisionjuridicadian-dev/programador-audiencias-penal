@@ -8,6 +8,7 @@
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@9.7.1/dist/index.iife.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 </head>
 <body>
 
@@ -1197,14 +1198,63 @@
       }],
     });
 
-    const blob = await Packer.toBlob(doc);
     const nombreArchivo = `Poder_${(r.radicado_proceso || "audiencia").replace(/\D/g, "") || "audiencia"}.docx`;
+
+    // Se intenta insertar el texto dentro de assets/Plantilla_Poder.docx (que
+    // ya trae el logo de la DIAN en el encabezado y el pie de página oficial
+    // — "Información Pública Clasificada", dirección, teléfono — en vez de
+    // generar un documento en blanco. Si por lo que sea no se puede leer la
+    // plantilla (falla la red, el archivo no está, etc.), se cae al
+    // documento generado desde cero como respaldo, para que el botón nunca
+    // deje de funcionar del todo.
+    let blob;
+    try {
+      blob = await insertarEnPlantillaPoder(doc);
+    } catch (e) {
+      console.error("No se pudo usar la plantilla, se genera el documento en blanco:", e);
+      blob = await Packer.toBlob(doc);
+    }
+
     const enlace = document.createElement("a");
     enlace.href = URL.createObjectURL(blob);
     enlace.download = nombreArchivo;
     document.body.appendChild(enlace);
     enlace.click();
     enlace.remove();
+  }
+
+  // Arma el .docx final insertando el cuerpo del documento ya generado por
+  // docx.js (párrafos y tabla, todos con formato directo — sin depender de
+  // estilos con nombre, así que da igual de qué documento vengan) dentro de
+  // assets/Plantilla_Poder.docx, conservando intacto todo lo demás de la
+  // plantilla: encabezado (logo DIAN), pie de página (distinto en la
+  // primera página que en las siguientes — la plantilla ya lo trae así) y
+  // márgenes. Solo se reemplaza el <w:body> del documento, hasta el
+  // <w:sectPr> final, que es el que trae las referencias a esos encabezados
+  // y pies de página y por eso se deja tal cual viene en la plantilla.
+  async function insertarEnPlantillaPoder(doc) {
+    const blobGenerado = await docx.Packer.toBlob(doc);
+    const zipGenerado = await JSZip.loadAsync(blobGenerado);
+    const xmlGenerado = await zipGenerado.file("word/document.xml").async("string");
+    const coincidenciaCuerpo = xmlGenerado.match(/<w:body>([\s\S]*?)<w:sectPr/);
+    if (!coincidenciaCuerpo) throw new Error("No se pudo leer el cuerpo del documento generado.");
+    const cuerpoNuevo = coincidenciaCuerpo[1];
+
+    const respuestaPlantilla = await fetch("assets/Plantilla_Poder.docx");
+    if (!respuestaPlantilla.ok) throw new Error("No se pudo descargar assets/Plantilla_Poder.docx.");
+    const bufferPlantilla = await respuestaPlantilla.arrayBuffer();
+    const zipPlantilla = await JSZip.loadAsync(bufferPlantilla);
+    const xmlPlantilla = await zipPlantilla.file("word/document.xml").async("string");
+    if (!/<w:body>[\s\S]*<w:sectPr/.test(xmlPlantilla)) {
+      throw new Error("La plantilla no tiene la estructura <w:body>…<w:sectPr> esperada.");
+    }
+    const xmlFinal = xmlPlantilla.replace(/<w:body>[\s\S]*?(<w:sectPr)/, "<w:body>" + cuerpoNuevo + "$1");
+    zipPlantilla.file("word/document.xml", xmlFinal);
+
+    return zipPlantilla.generateAsync({
+      type: "blob",
+      mimeType: "application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+    });
   }
 
   // ===== "Enviar Recordatorio": correo al abogado con los datos de la
