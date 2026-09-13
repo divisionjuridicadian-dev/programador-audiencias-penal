@@ -6,6 +6,7 @@
 <title>Programador de Audiencias · Unidad Penal DIAN</title>
 <link rel="stylesheet" href="assets/style.css">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@9.7.1/dist/index.iife.min.js"></script>
 </head>
 <body>
 
@@ -197,6 +198,30 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalPoder" onclick="if (event.target === this) cerrarModalPoder();">
+  <div class="modal-card" style="max-width:480px;">
+    <div class="modal-head">
+      <h3>Generar Poder</h3>
+      <button type="button" class="modal-close" title="Cerrar" onclick="cerrarModalPoder()">✕</button>
+    </div>
+    <div class="modal-content">
+      <p class="muted" style="font-size:12.5px; margin:0 0 14px;">
+        Se genera un documento de Word (.docx) con base en el formato de Poder de la DIAN, tomando
+        los datos de esta audiencia y del abogado titular (o el que reemplaza, si hay uno elegido).
+      </p>
+      <div class="field">
+        <label for="poderDirectora">Directora Asignada (poderdante)</label>
+        <select id="poderDirectora"></select>
+      </div>
+      <p class="hint" id="poderEstado" style="margin-top:10px;"></p>
+      <div class="row" style="justify-content:flex-end; gap:8px; margin-top:20px;">
+        <button type="button" class="btn-ghost" onclick="cerrarModalPoder()">Cancelar</button>
+        <button type="button" class="btn-gold" id="btnGenerarPoder" onclick="generarPoder()">Generar documento</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <footer class="footer-note">Programador de Audiencias · Unidad Penal DIAN — datos en Supabase, acceso restringido al equipo</footer>
 
   </div>
@@ -208,6 +233,9 @@
   let todasLasFilas = [];
   let filasVisibles = []; // último subconjunto filtrado, para exportarExcel()
   let resultadosCatalogo = []; // {id, nombre} activos, para el selector de Resultado en la tarjeta
+  let abogadosCompletos = []; // registros completos (cédula, T.P., género, correo) para "Generar Poder"
+  let directorasCatalogo = []; // directoras_asignadas activas (poderdante), para "Generar Poder"
+  let poderAudienciaId = null;
 
   // Solo define el orden en que se muestran cuando existen; no limita cuáles
   // aparecen (cualquier estado que no esté aquí — p.ej. un resultado antiguo
@@ -227,6 +255,7 @@
     const abogados = await cargarCatalogo("abogados");
     llenarSelectFiltro(document.getElementById("fAbogado"), abogados.map(a => a.nombre));
     resultadosCatalogo = await cargarCatalogo("resultados_audiencia");
+    await cargarDatosParaPoder();
 
     // Por defecto solo se ve de hoy en adelante; lo anterior queda oculto salvo
     // que se cambie el filtro de fecha manualmente.
@@ -775,6 +804,7 @@
             <div class="audiencia-card-resultado">${celdaResultado(r)}</div>
           </div>
           <div class="audiencia-card-actions">
+            <button class="btn-icon-edit" type="button" title="Generar Poder (.docx)" onclick="abrirModalPoder('${r.id}')">${ICONOS.documento}</button>
             <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">${ICONOS.editar}</button>
           </div>
         </div>
@@ -954,6 +984,173 @@
     // la vista audiencias_estado, no vale la pena duplicar esa lógica acá.
     await cargarDatos();
     if (resultadoId) abrirModalNovedad(id, resultadoNombre);
+  }
+
+  // ===== "Generar Poder": arma un documento de Word (.docx) con el formato
+  // de Poder de la DIAN, tomando la mayoría de los datos de la audiencia y
+  // del abogado titular/reemplaza, más la Directora Asignada (poderdante)
+  // que se elige del catálogo — ver RESUMEN_PROYECTO.md. =====
+  async function cargarDatosParaPoder() {
+    const [abogadosRes, directorasRes] = await Promise.all([
+      db.from("abogados").select("*").eq("activo", true),
+      db.from("directoras_asignadas").select("*").eq("activo", true).order("nombres_completos"),
+    ]);
+    if (abogadosRes.error) console.error(abogadosRes.error);
+    else abogadosCompletos = abogadosRes.data;
+    if (directorasRes.error) console.error(directorasRes.error);
+    else directorasCatalogo = directorasRes.data;
+  }
+
+  function abrirModalPoder(audienciaId) {
+    poderAudienciaId = audienciaId;
+    const select = document.getElementById("poderDirectora");
+    select.innerHTML = directorasCatalogo
+      .map(d => `<option value="${d.id}">${escapeHtml(d.nombres_completos)}</option>`).join("");
+    document.getElementById("poderEstado").textContent = directorasCatalogo.length
+      ? ""
+      : "No hay ninguna Directora Asignada activa — agrega una en Catálogos antes de generar el Poder.";
+    document.getElementById("btnGenerarPoder").disabled = !directorasCatalogo.length;
+    document.getElementById("modalPoder").classList.add("show");
+  }
+
+  function cerrarModalPoder() {
+    document.getElementById("modalPoder").classList.remove("show");
+    poderAudienciaId = null;
+  }
+
+  // Formato "13 de septiembre de 2026" (sin día de la semana, a diferencia
+  // de formatFechaCompleta) — el que usa el texto del Poder para fechas.
+  function formatFechaLargaSinDia(iso) {
+    if (!iso) return "—";
+    const [y, m, d] = iso.split("-").map(Number);
+    return `${d} de ${MESES_COMPLETOS[m - 1]} de ${y}`;
+  }
+
+  async function generarPoder() {
+    const r = todasLasFilas.find(x => x.id === poderAudienciaId);
+    const directoraId = document.getElementById("poderDirectora").value;
+    const directora = directorasCatalogo.find(d => d.id === directoraId);
+    if (!r || !directora) return;
+
+    // "Abogado que reemplaza" tiene prioridad sobre "Abogado titular" si
+    // está seleccionado para esta audiencia — mismo criterio que usaría
+    // cualquiera al mirar quién va a la audiencia en realidad. La vista
+    // `audiencias_estado` trae el nombre ya resuelto (no el id), así que
+    // se empareja por nombre contra el catálogo completo de abogados.
+    const nombreAbogado = r.abogado_reemplaza || r.abogado_titular;
+    const abogado = abogadosCompletos.find(a => a.nombre === nombreAbogado);
+    if (!abogado) {
+      showToast("Esta audiencia no tiene abogado titular (ni reemplazo) asignado.", true);
+      return;
+    }
+
+    const btn = document.getElementById("btnGenerarPoder");
+    btn.disabled = true;
+    btn.textContent = "Generando…";
+    try {
+      await construirYDescargarPoder(r, directora, abogado);
+      cerrarModalPoder();
+      showToast("Poder generado.");
+    } catch (e) {
+      console.error(e);
+      showToast("No se pudo generar el documento.", true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Generar documento";
+    }
+  }
+
+  async function construirYDescargarPoder(r, directora, abogado) {
+    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType } = docx;
+
+    const esFemenino = (abogado.genero || "").toUpperCase() === "F";
+    const alAbogado = esFemenino ? "a la abogada" : "al abogado";
+    const identificadoA = esFemenino ? "identificada" : "identificado";
+    const facultadoA = esFemenino ? "facultada" : "facultado";
+    const apoderadoA = esFemenino ? "a la apoderada" : "al apoderado";
+    const tituloAbogado = esFemenino ? "Abogada G.I.T. Unidad Penal" : "Abogado G.I.T. Unidad Penal";
+
+    const filasTabla = [
+      ["ASUNTO", "PODER"],
+      ["DENUNCIANTE", "U.A.E. DIAN. (Dirección de Impuestos y Aduanas Nacionales)"],
+      ["DENUNCIADO", [r.nombre_procesado || "—", r.id_procesado ? `C.C. ${r.id_procesado}` : ""].filter(Boolean).join(" ")],
+    ];
+    if (r.nombre_persona_juridica) {
+      filasTabla.push(["ENTE JURÍDICO", [r.nombre_persona_juridica, r.nit_persona_juridica ? `NIT ${r.nit_persona_juridica}` : ""].filter(Boolean).join(" ")]);
+    }
+    filasTabla.push(["PRESUNTO DELITO", r.delito_base || "—"]);
+    filasTabla.push(["SPOA", r.radicado_proceso || "—"]);
+
+    const tabla = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: filasTabla.map(([etiqueta, valor]) => new TableRow({
+        children: [
+          new TableCell({ width: { size: 22, type: WidthType.PERCENTAGE }, children: [new Paragraph({ children: [new TextRun({ text: etiqueta, bold: true })] })] }),
+          new TableCell({ width: { size: 78, type: WidthType.PERCENTAGE }, children: [new Paragraph(valor)] }),
+        ],
+      })),
+    });
+
+    const parrafoPoderdante = new Paragraph({
+      spacing: { after: 220 },
+      children: [new TextRun(
+        `${directora.nombres_completos}, mayor de edad, identificada con cédula de ciudadanía Nº ${directora.identificacion || "—"}, ` +
+        `actuando como ${directora.cargo || "Directora Asignada"} de la Dirección Seccional de Impuestos de Medellín, según Resolución ` +
+        `${directora.resolucion || "—"} del ${formatFechaLargaSinDia(directora.fecha_resolucion)}, debidamente facultada por los Arts. 46 y 47 ` +
+        `de la resolución N° 000091 del 3 de septiembre de 2021, proferida por el Director General de Impuestos y Aduanas Nacionales, ` +
+        `por medio de este escrito manifiesto que confiero poder especial, amplio y suficiente ${alAbogado} ${abogado.nombre}, ${identificadoA} ` +
+        `con C.C. N° ${abogado.cedula || "—"} y T.P.N° ${abogado.tarjeta_profesional || "—"} del C.S. de la Judicatura, con el fin de representar ` +
+        `a la NACION-U.A.E. DIRECCIÓN DE IMPUESTOS Y ADUANAS NACIONALES, en calidad de VÍCTIMA, dentro del proceso de la referencia.`
+      )],
+    });
+
+    const parrafoFacultades = new Paragraph({
+      spacing: { after: 220 },
+      children: [new TextRun(
+        `El profesional del derecho queda ${facultadoA} para transigir; conciliar judicial y extrajudicialmente; desistir previa ` +
+        `autorización del competente; e interponer recursos; participar en la práctica de los medios de prueba o contradicción que se ` +
+        `estimen pertinentes, de acuerdo con los procedimientos legales y las instrucciones del Comité de Conciliación y Defensa Judicial ` +
+        `y demás consagradas en el artículo 77 del C.G.P., para la eficaz representación de los intereses de la DIAN.`
+      )],
+    });
+
+    const parrafoCierre = new Paragraph({
+      spacing: { after: 500 },
+      children: [new TextRun(`Sírvase señor Juez, reconocer personería ${apoderadoA}, dentro de los términos y para los efectos consagrados en este mandato.`)],
+    });
+
+    const doc = new Document({
+      sections: [{
+        children: [
+          new Paragraph({ text: `Medellín, ${formatFechaLargaSinDia(fechaHoyISO())}`, spacing: { after: 300 } }),
+          new Paragraph({ text: "Señor (a)" }),
+          new Paragraph({ text: r.despacho || "—" }),
+          new Paragraph({ text: [r.ciudad, r.departamento].filter(Boolean).join(" - "), spacing: { after: 300 } }),
+          tabla,
+          new Paragraph({ text: "", spacing: { after: 200 } }),
+          parrafoPoderdante,
+          parrafoFacultades,
+          parrafoCierre,
+          new Paragraph({ text: (directora.nombres_completos || "").toUpperCase() }),
+          new Paragraph({ text: directora.cargo || "", spacing: { after: 400 } }),
+          new Paragraph({ text: "ACEPTO:", spacing: { after: 400 } }),
+          new Paragraph({ text: (abogado.nombre || "").toUpperCase() }),
+          new Paragraph({ text: tituloAbogado }),
+          new Paragraph({ text: "División Jurídica" }),
+          new Paragraph({ text: "Dirección Seccional de Impuestos de Medellín" }),
+          new Paragraph({ text: abogado.correo || "" }),
+        ],
+      }],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    const nombreArchivo = `Poder_${(r.radicado_proceso || "audiencia").replace(/\D/g, "") || "audiencia"}.docx`;
+    const enlace = document.createElement("a");
+    enlace.href = URL.createObjectURL(blob);
+    enlace.download = nombreArchivo;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
   }
 
   // Nombre del procesado en negrita y, debajo, el de la persona jurídica en
@@ -1219,7 +1416,7 @@
   }
 
   document.addEventListener("keydown", (e) => {
-    if (e.key === "Escape") { cerrarModalRamaJudicial(); cerrarModalNovedad(); }
+    if (e.key === "Escape") { cerrarModalRamaJudicial(); cerrarModalNovedad(); cerrarModalPoder(); }
   });
 
   init();

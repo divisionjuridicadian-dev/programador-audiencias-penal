@@ -102,6 +102,25 @@
     </div>
   </div>
 
+  <div class="card abogados-card">
+    <div class="card-head">
+      <div><h2>Directoras Asignadas</h2><p>Quien otorga el poder (poderdante) al generar un Poder desde una audiencia</p></div>
+      <button class="btn-gold" type="button" onclick="abrirModalDirectora()">+ Agregar directora</button>
+    </div>
+    <div class="card-body">
+      <div class="table-scroll">
+        <table>
+          <thead>
+            <tr>
+              <th>Identificación</th><th>Nombres completos</th><th>Cargo</th><th>Resolución</th><th>Fecha resolución</th><th>Acciones</th>
+            </tr>
+          </thead>
+          <tbody id="listaDirectoras"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
   <div class="cat-grid">
     <div class="card">
       <div class="card-head"><div><h2>Tipos de audiencia</h2><p>Opciones del desplegable</p></div></div>
@@ -195,6 +214,46 @@
   </div>
 </div>
 
+<div class="modal-overlay" id="modalDirectora" onclick="if (event.target === this) cerrarModalDirectora();">
+  <div class="modal-card" style="max-width:560px;">
+    <div class="modal-head">
+      <h3 id="modalDirectoraTitulo">Agregar directora</h3>
+      <button type="button" class="modal-close" title="Cerrar" onclick="cerrarModalDirectora()">✕</button>
+    </div>
+    <div class="modal-content">
+      <form id="formDirectora" onsubmit="guardarDirectora(event)">
+        <input type="hidden" id="directoraId">
+        <div class="field-grid">
+          <div class="field span-2">
+            <label for="directoraNombre">Nombres completos</label>
+            <input type="text" id="directoraNombre" required placeholder="Ej. YULIANA ALEJANDRA PATIÑO SOSA">
+          </div>
+          <div class="field">
+            <label for="directoraIdentificacion">Identificación (cédula)</label>
+            <input type="text" id="directoraIdentificacion" inputmode="numeric" placeholder="Ej. 43984912">
+          </div>
+          <div class="field">
+            <label for="directoraCargo">Cargo</label>
+            <input type="text" id="directoraCargo" placeholder="Ej. Directora Asignada">
+          </div>
+          <div class="field">
+            <label for="directoraResolucion">Resolución</label>
+            <input type="text" id="directoraResolucion" placeholder="Ej. 004528">
+          </div>
+          <div class="field">
+            <label for="directoraFechaResolucion">Fecha de la resolución</label>
+            <input type="date" id="directoraFechaResolucion">
+          </div>
+        </div>
+        <div class="row" style="justify-content:flex-end; gap:8px; margin-top:20px;">
+          <button type="button" class="btn-ghost" onclick="cerrarModalDirectora()">Cancelar</button>
+          <button type="submit" class="btn-gold">Guardar</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
   </div>
 </div>
 
@@ -207,12 +266,13 @@
     wireUserChip(session);
     await Promise.all([
       cargarAbogados(),
+      cargarDirectoras(),
       cargarLista("tipos_audiencia", "listaTipos"),
       cargarLista("resultados_audiencia", "listaResultados"),
       cargarDespachos(),
     ]);
     document.addEventListener("keydown", (e) => {
-      if (e.key === "Escape") cerrarModalAbogado();
+      if (e.key === "Escape") { cerrarModalAbogado(); cerrarModalDirectora(); }
     });
   }
 
@@ -306,6 +366,94 @@
     const { error } = await db.from("abogados").update({ activo: false }).eq("id", id);
     if (error) { showToast("No se pudo quitar.", true); return; }
     cargarAbogados();
+  }
+
+  // ===== Directoras Asignadas (poderdante del documento de Poder — ver
+  // "Generar Poder" en la tarjeta de cada audiencia, index.html) =====
+  let todasLasDirectoras = [];
+
+  async function cargarDirectoras() {
+    const { data, error } = await db.from("directoras_asignadas").select("*").eq("activo", true).order("nombres_completos");
+    if (error) { console.error(error); showToast("No se pudieron cargar las directoras.", true); return; }
+    todasLasDirectoras = data;
+    renderDirectoras();
+  }
+
+  function renderDirectoras() {
+    const tbody = document.getElementById("listaDirectoras");
+    tbody.innerHTML = todasLasDirectoras.map(d => `
+      <tr>
+        <td class="mono-cell">${escapeHtml(d.identificacion || "—")}</td>
+        <td>${escapeHtml(d.nombres_completos)}</td>
+        <td>${escapeHtml(d.cargo || "—")}</td>
+        <td class="mono-cell">${escapeHtml(d.resolucion || "—")}</td>
+        <td class="mono-cell">${d.fecha_resolucion ? formatFecha(d.fecha_resolucion) : "—"}</td>
+        <td class="col-actions">
+          <span style="display:inline-flex; gap:4px;">
+            <button class="btn-icon-edit" type="button" title="Editar directora" onclick="abrirModalDirectora('${d.id}')">${ICONOS.editar}</button>
+            <button class="link-danger" type="button" title="Quitar de la lista" onclick="desactivarDirectora('${d.id}')">${ICONOS.papelera}</button>
+          </span>
+        </td>
+      </tr>
+    `).join("") || `<tr><td colspan="6" class="muted" style="text-align:center;">Sin directoras registradas.</td></tr>`;
+  }
+
+  function abrirModalDirectora(id) {
+    document.getElementById("formDirectora").reset();
+    document.getElementById("directoraId").value = "";
+    if (id) {
+      const d = todasLasDirectoras.find(x => x.id === id);
+      if (!d) return;
+      document.getElementById("modalDirectoraTitulo").textContent = "Editar directora";
+      document.getElementById("directoraId").value = d.id;
+      document.getElementById("directoraNombre").value = d.nombres_completos || "";
+      document.getElementById("directoraIdentificacion").value = d.identificacion || "";
+      document.getElementById("directoraCargo").value = d.cargo || "";
+      document.getElementById("directoraResolucion").value = d.resolucion || "";
+      document.getElementById("directoraFechaResolucion").value = d.fecha_resolucion || "";
+    } else {
+      document.getElementById("modalDirectoraTitulo").textContent = "Agregar directora";
+    }
+    document.getElementById("modalDirectora").classList.add("show");
+  }
+
+  function cerrarModalDirectora() {
+    document.getElementById("modalDirectora").classList.remove("show");
+  }
+
+  async function guardarDirectora(e) {
+    e.preventDefault();
+    const id = document.getElementById("directoraId").value;
+    const nombres = document.getElementById("directoraNombre").value.trim();
+    if (!nombres) { showToast("El nombre es obligatorio.", true); return; }
+    const datos = {
+      nombres_completos: nombres,
+      identificacion: document.getElementById("directoraIdentificacion").value.trim() || null,
+      cargo: document.getElementById("directoraCargo").value.trim() || null,
+      resolucion: document.getElementById("directoraResolucion").value.trim() || null,
+      fecha_resolucion: document.getElementById("directoraFechaResolucion").value || null,
+    };
+    const { error } = id
+      ? await db.from("directoras_asignadas").update(datos).eq("id", id)
+      : await db.from("directoras_asignadas").insert(datos);
+    if (error) {
+      console.error(error);
+      showToast("No se pudo guardar.", true);
+      return;
+    }
+    cerrarModalDirectora();
+    showToast(id ? "Directora actualizada." : "Directora agregada.");
+    cargarDirectoras();
+  }
+
+  async function desactivarDirectora(id) {
+    const ok = await confirmarAccion(
+      "¿Quitar esta directora del catálogo?",
+      { titulo: "Quitar del catálogo", textoConfirmar: "Quitar" });
+    if (!ok) return;
+    const { error } = await db.from("directoras_asignadas").update({ activo: false }).eq("id", id);
+    if (error) { showToast("No se pudo quitar.", true); return; }
+    cargarDirectoras();
   }
 
   let todosLosDespachos = [];
