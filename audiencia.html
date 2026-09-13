@@ -27,6 +27,20 @@
      de cada fila (delito/ciudad/cuantía en gris, debajo del nombre). */
   #consolidadoLista .desp-meta{margin-top:1px;}
 </style>
+<!-- PWA: instalar como app (Agregar a pantalla de inicio) -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#14213d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Audiencias">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch((err) => console.error("No se pudo registrar el service worker:", err));
+    });
+  }
+</script>
 </head>
 <body>
 
