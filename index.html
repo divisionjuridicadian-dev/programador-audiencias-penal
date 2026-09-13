@@ -1097,13 +1097,16 @@
   async function construirYDescargarPoder(r, directora, abogado) {
     const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType } = docx;
 
-    // Formato pedido para todo el documento: Arial 12 (24 en half-points,
-    // que es como docx mide el tamaño de fuente) y justificado. Se fija como
-    // valor por defecto del documento (styles.default.document) Y además se
-    // repite explícito en cada TextRun/Paragraph vía estos helpers, para que
-    // no dependa de que Word respete los defaults en todas las celdas de tabla.
+    // Formato pedido para todo el documento: Arial 11 (22 en half-points,
+    // que es como docx mide el tamaño de fuente) y justificado, salvo el
+    // cuadro de ASUNTO/DENUNCIANTE/etc., que va en tamaño 10 (ver TAMANO_TABLA
+    // más abajo). Se fija como valor por defecto del documento
+    // (styles.default.document) Y además se repite explícito en cada
+    // TextRun/Paragraph vía estos helpers, para que no dependa de que Word
+    // respete los defaults en todas las celdas de tabla.
     const FUENTE = "Arial";
-    const TAMANO = 24; // 12pt
+    const TAMANO = 22; // 11pt
+    const TAMANO_TABLA = 20; // 10pt — solo el cuadro ASUNTO/DENUNCIANTE/DENUNCIADO/etc.
     function correr(texto, opts) {
       return new TextRun(Object.assign({ text: texto, font: FUENTE, size: TAMANO }, opts));
     }
@@ -1136,8 +1139,8 @@
       width: { size: 100, type: WidthType.PERCENTAGE },
       rows: filasTabla.map(([etiqueta, valor]) => new TableRow({
         children: [
-          new TableCell({ width: { size: 22, type: WidthType.PERCENTAGE }, children: [parrafo([correr(etiqueta, { bold: true })])] }),
-          new TableCell({ width: { size: 78, type: WidthType.PERCENTAGE }, children: [parrafo(valor)] }),
+          new TableCell({ width: { size: 22, type: WidthType.PERCENTAGE }, children: [parrafo([correr(etiqueta, { bold: true, size: TAMANO_TABLA })])] }),
+          new TableCell({ width: { size: 78, type: WidthType.PERCENTAGE }, children: [parrafo([correr(valor, { size: TAMANO_TABLA })])] }),
         ],
       })),
     });
