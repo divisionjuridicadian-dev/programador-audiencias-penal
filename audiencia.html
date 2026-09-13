@@ -855,7 +855,7 @@
     }
     const ok = await confirmarAccion(
       `¿Traer los datos de este proceso al formulario?\n\n"${r.nombreProcesado}" — ${r.radicado23}\n\n` +
-      `Esto reemplaza Despacho, Departamento, Ciudad, Delito base, Procesado, Cuantía, Apoderado titular, ` +
+      `Esto reemplaza Departamento, Ciudad, Delito base, Procesado, Cuantía, Apoderado titular, ` +
       `Estado del proceso, Observaciones, NIT, CC y Contribuyente ya diligenciados. Recuerda hacer clic en ` +
       `"Guardar audiencia" para confirmar los cambios.`,
       { titulo: "Traer datos del Consolidado", textoConfirmar: "Traer datos", peligro: false });
@@ -863,7 +863,11 @@
 
     document.getElementById("radicado").value = r.radicado23;
     document.getElementById("radicado").dispatchEvent(new Event("input"));
-    document.getElementById("despacho").value = r.despacho;
+    // El Despacho del Consolidado no se trae a propósito: su clasificación
+    // ("8 8 Otro", etc. — ver sección 7.23) no es un nombre de despacho
+    // usable. Al dejar el campo vacío, el evento "input" de arriba ya
+    // dispara la consulta automática a la Rama Judicial (más arriba en
+    // este archivo), que si el radicado existe sí trae el despacho real.
     document.getElementById("departamento").value = r.departamento;
     document.getElementById("ciudad").value = r.ciudad;
     document.getElementById("delitoBase").value = r.delitoBase;
