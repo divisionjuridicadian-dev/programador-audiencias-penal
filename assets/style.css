@@ -287,6 +287,17 @@ tbody tr.fila-presencial:hover{background:#f0dcb4;}
 .copyable{cursor:pointer; border-radius:4px; margin:-3px -5px; padding:3px 5px; display:inline-block;}
 .copyable:hover{background:var(--gold-soft);}
 .badge.copyable:hover{filter:brightness(0.95);}
+/* Dentro de campos con elipsis (despacho/fiscalia/observaciones en tarjetas), el .copyable
+   no puede seguir siendo inline-block: un inline-block es una caja atomica y el navegador
+   la recorta en seco al desbordar en vez de aplicarle el "…" del contenedor. Se vuelve
+   inline (no atomico) solo en estos contenedores para que el texto sí se trunque con puntos
+   suspensivos en pantallas angostas. */
+.audiencia-card-despacho .copyable,
+.audiencia-card-fiscalia .copyable,
+.audiencia-card-nombre-fiscal .copyable,
+.truncate:not(.copyable) > .copyable{
+  display:inline; margin:0; padding:0;
+}
 .col-actions{text-align:center; white-space:nowrap;}
 .btn-icon-edit{
   flex:none; width:28px; height:28px; padding:0; display:inline-flex; align-items:center; justify-content:center;
@@ -441,9 +452,21 @@ select.resultado-select:hover, select.resultado-select:focus{
    de la tarjeta (no es un catálogo con días hábiles/límites calculados
    como en Control de Términos — acá es solo "qué pasó, cuándo, y qué
    hacer al respecto", cargado a mano). ===== */
+/* Ahora es un <details>: oculto por defecto tanto en PC como en móvil, se
+   abre con clic en el encabezado/flecha (ver celdaNovedades() en index.html).
+   El resumen (<summary>) reusa la clase -head con su mismo layout de antes;
+   solo se le quita el marcador nativo de <summary> (triángulo/flechita del
+   navegador) para reemplazarlo por el ícono .novedades-flecha, que gira al
+   abrir. */
 .audiencia-card-novedades{margin-top:12px; padding-top:10px; border-top:1px solid var(--line);}
-.audiencia-card-novedades-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px;}
+.audiencia-card-novedades > summary{cursor:pointer; list-style:none;}
+.audiencia-card-novedades > summary::-webkit-details-marker{display:none;}
+.audiencia-card-novedades-head{display:flex; align-items:center; justify-content:space-between; margin-bottom:6px; gap:10px;}
 .audiencia-card-novedades-head .lbl-mini{font-size:11px; text-transform:uppercase; letter-spacing:.04em; color:var(--ink-soft); font-weight:700;}
+.audiencia-card-novedades-head-izq{display:flex; align-items:center; gap:6px; min-width:0;}
+.novedades-flecha{display:inline-flex; color:var(--ink-soft); flex:none; transition:transform .15s ease;}
+.audiencia-card-novedades[open] > summary .novedades-flecha{transform:rotate(90deg);}
+.audiencia-card-novedades > summary:hover .lbl-mini{color:var(--ink);}
 .btn-mini-add{
   background:none; border:none; color:var(--navy-700); font-size:11.5px; font-weight:700;
   cursor:pointer; padding:2px 6px; border-radius:5px;
