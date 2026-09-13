@@ -300,8 +300,8 @@
       <div id="consolidadoPasoCarga">
         <p class="muted" style="font-size:12.5px; margin:0 0 14px;">
           Selecciona el archivo <strong>Consolidado.xlsx</strong> guardado en tu equipo. Se filtra
-          solo a procesos de Carlos Enrique Echeverry Sepúlveda en juzgados penales — hace falta
-          cargarlo una sola vez mientras no cierres esta pestaña.
+          solo a procesos de Carlos Enrique Echeverry Sepúlveda — hace falta cargarlo una sola vez
+          mientras no cierres esta pestaña.
         </p>
         <input type="file" id="consolidadoFileInput" accept=".xlsx,.xls">
         <p class="hint" id="consolidadoCargaEstado" style="margin-top:10px;"></p>
@@ -746,7 +746,7 @@
       const filas = XLSX.utils.sheet_to_json(wb.Sheets[nombreHoja], { header: 1, raw: true, defval: "" });
       consolidadoRegistros = procesarConsolidado(filas);
       estado.className = "hint ok";
-      estado.textContent = `Cargado: ${consolidadoRegistros.length} procesos de ${APODERADO_CONSOLIDADO} en juzgados penales.`;
+      estado.textContent = `Cargado: ${consolidadoRegistros.length} procesos de ${APODERADO_CONSOLIDADO}.`;
       mostrarPasoBuscarConsolidado();
     } catch (err) {
       console.error(err);
@@ -769,7 +769,12 @@
       const apoderado = String(fila[idx.apoderado] || "").trim();
       const despacho = String(fila[idx.despacho] || "").trim();
       if (!apoderado.toUpperCase().includes(APODERADO_CONSOLIDADO)) continue;
-      if (!despacho.toUpperCase().includes("JUZGADO PENAL")) continue;
+      // Nota: se filtra solo por apoderado, sin exigir que DESPACHO diga
+      // "Juzgado Penal" — se probó con el archivo real y el 76% de los
+      // procesos de Carlos (653 de 862) tienen DESPACHO = "8 8 Otro", una
+      // clasificación genérica del Consolidado, no una señal de que el
+      // proceso no sea penal. Filtrar por ese texto dejaba fuera a la
+      // mayoría de sus casos reales.
       const digitos = String(fila[idx.radicado] || "").replace(/\D/g, "");
       registros.push({
         radicado21: digitos,
