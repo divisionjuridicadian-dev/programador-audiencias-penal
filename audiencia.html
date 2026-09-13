@@ -299,9 +299,10 @@
     <div class="modal-content">
       <div id="consolidadoPasoCarga">
         <p class="muted" style="font-size:12.5px; margin:0 0 14px;">
-          Selecciona el archivo <strong>Consolidado.xlsx</strong> guardado en tu equipo. Se filtra
-          solo a procesos de Carlos Enrique Echeverry Sepúlveda — hace falta cargarlo una sola vez
-          mientras no cierres esta pestaña.
+          Selecciona el archivo <strong>Consolidado.xlsx</strong> guardado en tu equipo — hace falta
+          cargarlo una sola vez mientras no cierres esta pestaña. Se buscan todos los procesos del
+          archivo, sin importar a nombre de qué abogado estén, porque uno puede estar recién
+          reasignado y aún no reflejado ahí.
         </p>
         <input type="file" id="consolidadoFileInput" accept=".xlsx,.xls">
         <p class="hint" id="consolidadoCargaEstado" style="margin-top:10px;"></p>
@@ -702,8 +703,6 @@
     apoderado: "APODERADO", actividades: "ACTIVIDADES ADELANTADAS", observaciones: "OBSERVACIONES",
     nit: "NIT", cc: "CC", estado: "ESTADO", contribuyente: "CONTRIBUYENTE",
   };
-  const APODERADO_CONSOLIDADO = "CARLOS ENRIQUE ECHEVERRY SEPULVEDA";
-
   function abrirConsolidado() {
     document.getElementById("modalConsolidado").classList.add("show");
     if (consolidadoRegistros) {
@@ -746,7 +745,7 @@
       const filas = XLSX.utils.sheet_to_json(wb.Sheets[nombreHoja], { header: 1, raw: true, defval: "" });
       consolidadoRegistros = procesarConsolidado(filas);
       estado.className = "hint ok";
-      estado.textContent = `Cargado: ${consolidadoRegistros.length} procesos de ${APODERADO_CONSOLIDADO}.`;
+      estado.textContent = `Cargado: ${consolidadoRegistros.length} procesos.`;
       mostrarPasoBuscarConsolidado();
     } catch (err) {
       console.error(err);
@@ -768,13 +767,12 @@
       if (!fila || !fila.length) continue;
       const apoderado = String(fila[idx.apoderado] || "").trim();
       const despacho = String(fila[idx.despacho] || "").trim();
-      if (!apoderado.toUpperCase().includes(APODERADO_CONSOLIDADO)) continue;
-      // Nota: se filtra solo por apoderado, sin exigir que DESPACHO diga
-      // "Juzgado Penal" — se probó con el archivo real y el 76% de los
-      // procesos de Carlos (653 de 862) tienen DESPACHO = "8 8 Otro", una
-      // clasificación genérica del Consolidado, no una señal de que el
-      // proceso no sea penal. Filtrar por ese texto dejaba fuera a la
-      // mayoría de sus casos reales.
+      // Sin filtro por apoderado ni por despacho: se buscan todos los
+      // procesos del archivo. Un proceso recién reasignado a otro abogado
+      // (a Carlos, o desde Carlos a alguien más) puede no estar reflejado
+      // todavía en el Consolidado, así que restringir por el nombre del
+      // apoderado actual escondería justo los casos que más hace falta
+      // encontrar (ver 7.23 para el problema equivalente con el despacho).
       const digitos = String(fila[idx.radicado] || "").replace(/\D/g, "");
       registros.push({
         radicado21: digitos,
