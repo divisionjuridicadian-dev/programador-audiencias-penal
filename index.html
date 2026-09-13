@@ -1,6 +1,7 @@
 <!DOCTYPE html>
 <html lang="es">
 <head>
+<script>try{if(localStorage.getItem("dian_sidebar_colapsado")==="1")document.documentElement.setAttribute("data-sidebar","colapsado");}catch(e){}</script>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Programador de Audiencias · Unidad Penal DIAN</title>
@@ -25,6 +26,9 @@
        onclick="document.getElementById('sidebar').classList.remove('open'); this.classList.remove('show');"></div>
 
   <aside class="sidebar" id="sidebar">
+    <button type="button" class="btn-collapse-sidebar" title="Ocultar/mostrar menú" aria-label="Ocultar o mostrar el menú" onclick="alternarSidebarColapsado()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
     <div class="sidebar-brand">
       <img src="assets/logo_control_audiencias.png" alt="Control de Audiencias" class="brand-logo">
       <div class="brand-escudo-wrap"><img src="assets/escudo_colombia.png" alt="DIAN"></div>

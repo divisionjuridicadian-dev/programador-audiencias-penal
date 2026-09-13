@@ -34,6 +34,22 @@ function wireUserChip(session) {
   }
 }
 
+// ===== Colapsar/ocultar el menú lateral (solo escritorio) =====
+// El estado se guarda en localStorage y se aplica como atributo data-sidebar
+// en <html> — el script inline al principio del <head> de cada página ya lo
+// lee y lo fija antes de pintar, para que no haya parpadeo al cargar.
+const LS_SIDEBAR_COLAPSADO = "dian_sidebar_colapsado";
+function alternarSidebarColapsado() {
+  const colapsado = document.documentElement.getAttribute("data-sidebar") === "colapsado";
+  if (colapsado) {
+    document.documentElement.removeAttribute("data-sidebar");
+    try { localStorage.setItem(LS_SIDEBAR_COLAPSADO, "0"); } catch { /* localStorage no disponible */ }
+  } else {
+    document.documentElement.setAttribute("data-sidebar", "colapsado");
+    try { localStorage.setItem(LS_SIDEBAR_COLAPSADO, "1"); } catch { /* localStorage no disponible */ }
+  }
+}
+
 // ===== Utilidades de UI =====
 function escapeHtml(s) {
   return String(s == null ? "" : s)

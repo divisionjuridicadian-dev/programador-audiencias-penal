@@ -118,10 +118,15 @@ h1{font-family:var(--serif); font-weight:600; font-size:19px; margin:0; letter-s
   background:linear-gradient(180deg,var(--navy-950),var(--navy-900) 70%);
   border-right:3px solid var(--gold);
   position:sticky; top:0; height:calc(100vh - 32px); overflow-y:auto;
+  transition:width .2s ease;
 }
+/* Panel propio para el logo, con un lavado claro detrás — así resalta
+   contra el navy del sidebar en vez de quedar flotando sobre un fondo liso. */
 .sidebar-brand{
   display:flex; flex-direction:column; align-items:center; text-align:center; gap:6px;
-  padding:24px 16px 20px; border-bottom:1px solid rgba(255,255,255,0.12); flex-shrink:0;
+  padding:22px 16px 20px; margin:14px 12px 8px; border-radius:14px;
+  background:linear-gradient(165deg, rgba(255,255,255,0.11), rgba(255,255,255,0.02));
+  border:1px solid rgba(255,255,255,0.12); flex-shrink:0;
 }
 .sidebar-brand h1{color:var(--paper); margin-top:8px;}
 
@@ -150,6 +155,26 @@ h1{font-family:var(--serif); font-weight:600; font-size:19px; margin:0; letter-s
 
 .btn-toggle-sidebar{display:none;}
 .sidebar-backdrop{display:none;}
+
+/* ===== Colapsar/ocultar el menú (solo escritorio — en mobile ya existe el
+   toggle temporal de arriba). El estado se recuerda en localStorage vía el
+   atributo data-sidebar en <html>, fijado por un script inline al principio
+   del <head> de cada página para que no haya parpadeo al cargar. */
+.btn-collapse-sidebar{
+  display:none; position:fixed; top:48px; left:223px; z-index:230;
+  width:26px; height:26px; border-radius:50%; align-items:center; justify-content:center;
+  background:var(--navy-900); border:2px solid var(--gold); color:var(--gold-soft);
+  cursor:pointer; transition:left .2s ease, transform .2s ease;
+}
+.btn-collapse-sidebar:hover{color:#fff; border-color:var(--gold-soft);}
+@media (min-width:901px){
+  .btn-collapse-sidebar{display:flex;}
+}
+html[data-sidebar="colapsado"] .sidebar{width:0; min-width:0; border-right:none; overflow:hidden;}
+html[data-sidebar="colapsado"] .sidebar-brand,
+html[data-sidebar="colapsado"] .sidebar-nav,
+html[data-sidebar="colapsado"] .sidebar-footer{display:none;}
+html[data-sidebar="colapsado"] .btn-collapse-sidebar{left:6px; transform:rotate(180deg);}
 
 @media (max-width:900px){
   .sidebar{position:fixed; left:0; top:0; z-index:220; transform:translateX(-100%); transition:transform .2s ease; box-shadow:2px 0 20px rgba(0,0,0,.3);}
