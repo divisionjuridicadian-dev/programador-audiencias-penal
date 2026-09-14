@@ -304,6 +304,11 @@ tbody tr.fila-presencial:hover{background:#f0dcb4;}
   border:1px solid var(--line); border-radius:6px; background:#fff; color:var(--ink-soft); font-size:13px; cursor:pointer;
 }
 .btn-icon-edit:hover{background:var(--gold-soft); border-color:var(--gold); color:var(--navy-950);}
+/* Solo los íconos de acciones de la tarjeta (correo/Poder/Informe/Duplicar/
+   Editar) al doble de tamaño — el resto de usos de .btn-icon-edit (tabla,
+   buscar en la Rama Judicial, novedades…) quedan igual. */
+.audiencia-card-actions .btn-icon-edit{width:56px; height:56px; border-radius:10px;}
+.audiencia-card-actions .btn-icon-edit svg{width:28px; height:28px;}
 
 /* ===== Modal ===== */
 .modal-overlay{display:none; position:fixed; inset:0; background:rgba(15,26,48,0.55); z-index:200; align-items:center; justify-content:center; padding:20px;}
