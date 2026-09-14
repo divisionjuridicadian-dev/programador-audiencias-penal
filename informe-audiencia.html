@@ -612,14 +612,26 @@
     seccion("5. ANEXOS");
     fila("Anexos", inf.anexos);
 
-    seccion("INFORMACIÓN DEL ABOGADO QUE RINDE INFORME");
-    fila("Nombre", abogadoInforma.nombre);
-    fila("Ubicación", "DIVISIÓN JURÍDICA");
-    fila("Dirección Seccional", "DIRECCIÓN SECCIONAL DE IMPUESTOS DE MEDELLÍN");
-    fila("Fecha de elaboración", formatFecha(inf.fecha_elaboracion));
-
     return filas;
   }
+
+  // "Información del abogado que rinde informe" ya NO va en la tabla con
+  // bordes de arriba (pedido explícito: sin bordes, separada de Anexos con
+  // una línea) — se arma aparte, la usan construirYDescargarInformeWord()
+  // y construirYDescargarInformePDF() cada una a su manera.
+  function datosAbogadoInforme(inf, abogadoInforma) {
+    return [
+      ["Nombre", abogadoInforma.nombre],
+      ["Ubicación", "DIVISIÓN JURÍDICA"],
+      ["Dirección Seccional", "DIRECCIÓN SECCIONAL DE IMPUESTOS DE MEDELLÍN"],
+      ["Fecha de elaboración", formatFecha(inf.fecha_elaboracion)],
+    ];
+  }
+
+  const TEXTO_AVISO_TRASLADO =
+    "NO OLVIDE QUE DE ESTE INFORME DEBERÁ CORRER TRASLADO AL JEFE INMEDIATO Y COPIA DEL MISMO DEBERÁ " +
+    "REPOSAR EN LA CARPETA (UNIDAD DOCUMENTAL) DEL PROCESO PENAL A CARGO DE LA DIRECCIÓN SECCIONAL O " +
+    "COORDINACIÓN PENAL";
 
   // Colores del formato: navy de la marca para los títulos numerados
   // (1., 2., 3., 4., 5.) y un dorado suave para las subsecciones (2.1, 2.2,
@@ -668,22 +680,66 @@
     });
     const tabla = new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filasTabla });
 
+    // Encabezado con bordes visibles, dos filas — igual al membrete real del
+    // formato (logo | título | código, y debajo Proceso | Versión), en vez
+    // de la mini-tabla sin bordes que había antes.
     const logoBuf = await fetch("assets/logo_dian.png").then(res => res.arrayBuffer());
     const encabezado = new Table({
       width: { size: 100, type: WidthType.PERCENTAGE },
-      rows: [new TableRow({ children: [
-        new TableCell({
-          width: { size: 30, type: WidthType.PERCENTAGE }, borders: SIN_BORDE, verticalAlign: VerticalAlign.CENTER,
-          children: [new Paragraph({ children: [new ImageRun({ data: logoBuf, transformation: { width: 110, height: 26 }, type: "png" })] })],
-        }),
-        new TableCell({
-          width: { size: 70, type: WidthType.PERCENTAGE }, borders: SIN_BORDE, verticalAlign: VerticalAlign.CENTER,
-          children: [
-            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "INFORME DE DILIGENCIA JUDICIAL", bold: true, font: FUENTE, size: 26 })] }),
-            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "FT-PEC-2589", bold: true, font: FUENTE, size: 24 })] }),
-          ],
-        }),
-      ] })],
+      rows: [
+        new TableRow({ children: [
+          new TableCell({
+            width: { size: 22, type: WidthType.PERCENTAGE }, verticalAlign: VerticalAlign.CENTER,
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new ImageRun({ data: logoBuf, transformation: { width: 100, height: 24 }, type: "png" })] })],
+          }),
+          new TableCell({
+            width: { size: 48, type: WidthType.PERCENTAGE }, verticalAlign: VerticalAlign.CENTER,
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "INFORME DE DILIGENCIA JUDICIAL", bold: true, font: FUENTE, size: 22 })] })],
+          }),
+          new TableCell({
+            width: { size: 30, type: WidthType.PERCENTAGE }, verticalAlign: VerticalAlign.CENTER,
+            shading: { fill: COLOR_SECCION, type: ShadingType.CLEAR, color: "auto" },
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "FT-PEC-2589", bold: true, font: FUENTE, size: 26, color: COLOR_SECCION_TEXTO })] })],
+          }),
+        ] }),
+        new TableRow({ children: [
+          new TableCell({
+            columnSpan: 2, verticalAlign: VerticalAlign.CENTER,
+            children: [new Paragraph({ children: [
+              new TextRun({ text: "Proceso: ", bold: true, font: FUENTE, size: 19 }),
+              new TextRun({ text: "Planeación, Estrategia y Control", font: FUENTE, size: 19 }),
+            ] })],
+          }),
+          new TableCell({
+            verticalAlign: VerticalAlign.CENTER,
+            children: [new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "Versión 2", bold: true, font: FUENTE, size: 19 })] })],
+          }),
+        ] }),
+      ],
+    });
+
+    // "Información del abogado que rinde informe": sin bordes (pedido
+    // explícito), separada de Anexos con una línea arriba del título en vez
+    // de con una fila de tabla — border:{top:...} en el párrafo del título
+    // hace esa línea.
+    const filaInfoAbogado = (etiqueta, valor) => new TableRow({ children: [
+      new TableCell({ width: { size: 35, type: WidthType.PERCENTAGE }, borders: SIN_BORDE, margins: { top: 40, bottom: 40, left: 0, right: 100 }, children: [texto(etiqueta, { bold: true })] }),
+      new TableCell({ width: { size: 65, type: WidthType.PERCENTAGE }, borders: SIN_BORDE, margins: { top: 40, bottom: 40, left: 0, right: 100 }, children: [texto(valor)] }),
+    ] });
+    const tablaInfoAbogado = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: datosAbogadoInforme(inf, abogadoInforma).map(([e, v]) => filaInfoAbogado(e, v)),
+    });
+    const tituloInfoAbogado = new Paragraph({
+      border: { top: { style: BorderStyle.SINGLE, size: 6, color: "999999", space: 8 } },
+      spacing: { before: 240, after: 120 },
+      children: [new TextRun({ text: "INFORMACIÓN DEL ABOGADO QUE RINDE INFORME", bold: true, font: FUENTE, size: 20 })],
+    });
+
+    const avisoTraslado = new Paragraph({
+      alignment: AlignmentType.CENTER,
+      spacing: { before: 320 },
+      children: [new TextRun({ text: TEXTO_AVISO_TRASLADO, font: FUENTE, size: 16, color: "808080" })],
     });
 
     const imagenFirma = await cargarImagenFirma(abogadoInforma.ruta_firma);
@@ -697,13 +753,14 @@
         children: [
           encabezado,
           texto(""),
-          texto("Proceso: Planeación, Estrategia y Control — Versión 2", { italics: true, size: 17 }),
-          texto(""),
           tabla,
+          tituloInfoAbogado,
+          tablaInfoAbogado,
           texto(""),
           ...(imagenFirma
             ? [new Paragraph({ children: [imagenFirma] })]
             : [texto("Firma: _______________________")]),
+          avisoTraslado,
         ],
       }],
     });
@@ -732,22 +789,43 @@
     const ANCHO_UTIL = ANCHO_PAGINA - MARGEN * 2;
     let y = MARGEN;
 
+    // Encabezado con bordes visibles, dos filas (logo | título | código, y
+    // debajo Proceso | Versión) armado con autoTable — igual al membrete
+    // real del formato, en vez de texto suelto sin cuadros.
+    let logoBuf = null;
     try {
-      const logoBuf = await fetch("assets/logo_dian.png").then(res => res.arrayBuffer());
-      doc.addImage(new Uint8Array(logoBuf), "PNG", MARGEN, y, 88, 21);
+      logoBuf = await fetch("assets/logo_dian.png").then(res => res.arrayBuffer());
     } catch (e) {
       console.error("No se pudo cargar el logo para el PDF:", e);
     }
-    doc.setFont(FUENTE, "bold");
-    doc.setFontSize(13);
-    doc.text("INFORME DE DILIGENCIA JUDICIAL", ANCHO_PAGINA / 2, y + 12, { align: "center" });
-    doc.setFontSize(10);
-    doc.text("FT-PEC-2589", ANCHO_PAGINA - MARGEN, y + 12, { align: "right" });
-    y += 40;
-    doc.setFont(FUENTE, "italic");
-    doc.setFontSize(9);
-    doc.text("Proceso: Planeación, Estrategia y Control — Versión 2", MARGEN, y);
-    y += 16;
+    doc.autoTable({
+      startY: y,
+      margin: { left: MARGEN, right: MARGEN },
+      body: [
+        [
+          { content: "" },
+          { content: "INFORME DE DILIGENCIA JUDICIAL", styles: { fontStyle: "bold", fontSize: 12, halign: "center", valign: "middle" } },
+          { content: "FT-PEC-2589", styles: { fontStyle: "bold", fontSize: 13, halign: "center", valign: "middle", fillColor: COLOR_SECCION_RGB, textColor: 255 } },
+        ],
+        [
+          { content: "Proceso: Planeación, Estrategia y Control", colSpan: 2, styles: { fontSize: 9, valign: "middle" } },
+          { content: "Versión 2", styles: { fontStyle: "bold", fontSize: 9, halign: "center", valign: "middle" } },
+        ],
+      ],
+      theme: "grid",
+      styles: { font: FUENTE, lineColor: [0, 0, 0], lineWidth: 0.5, cellPadding: 6, minCellHeight: 30 },
+      columnStyles: { 0: { cellWidth: ANCHO_UTIL * 0.22 }, 1: { cellWidth: ANCHO_UTIL * 0.48 }, 2: { cellWidth: ANCHO_UTIL * 0.30 } },
+      didDrawCell: (data) => {
+        if (data.section === "body" && data.row.index === 0 && data.column.index === 0 && logoBuf) {
+          const w = 66, h = 15.8; // conserva la proporción real del logo (197x47)
+          try {
+            doc.addImage(new Uint8Array(logoBuf), "PNG",
+              data.cell.x + (data.cell.width - w) / 2, data.cell.y + (data.cell.height - h) / 2, w, h);
+          } catch (e) { console.error("No se pudo dibujar el logo en el encabezado:", e); }
+        }
+      },
+    });
+    y = doc.lastAutoTable.finalY + 14;
 
     const filas = construirFilasInforme(a, inf, abogadoInforma);
     const body = filas.map(f => {
@@ -769,6 +847,28 @@
     });
     y = doc.lastAutoTable.finalY + 16;
 
+    // "Información del abogado que rinde informe": sin bordes (pedido
+    // explícito) — se dibuja con doc.text() directo en vez de autoTable, y
+    // una línea fina arriba (doc.line) la separa de Anexos.
+    if (y + 90 > ALTO_PAGINA - 50) { doc.addPage(); y = MARGEN; }
+    doc.setDrawColor(150, 150, 150);
+    doc.setLineWidth(0.6);
+    doc.line(MARGEN, y, ANCHO_PAGINA - MARGEN, y);
+    y += 16;
+    doc.setFont(FUENTE, "bold");
+    doc.setFontSize(10);
+    doc.text("INFORMACIÓN DEL ABOGADO QUE RINDE INFORME", MARGEN, y);
+    y += 16;
+    datosAbogadoInforme(inf, abogadoInforma).forEach(([etiqueta, valor]) => {
+      doc.setFont(FUENTE, "bold");
+      doc.setFontSize(9);
+      doc.text(etiqueta + ":", MARGEN, y);
+      doc.setFont(FUENTE, "normal");
+      doc.text(valor, MARGEN + 130, y);
+      y += 15;
+    });
+    y += 6;
+
     const firma = await descargarFirmaEscalada(abogadoInforma.ruta_firma);
     if (y + (firma ? firma.alto : 20) + 10 > ALTO_PAGINA - 50) { doc.addPage(); y = MARGEN; }
     let firmaInsertada = false;
@@ -786,7 +886,18 @@
       doc.setFont(FUENTE, "normal");
       doc.setFontSize(9);
       doc.text("Firma: _______________________", MARGEN, y + 10);
+      y += 10;
     }
+
+    // Aviso de traslado, gris y centrado, debajo de la firma.
+    y += 26;
+    const lineasAviso = doc.splitTextToSize(TEXTO_AVISO_TRASLADO, ANCHO_UTIL);
+    if (y + lineasAviso.length * 11 > ALTO_PAGINA - 50) { doc.addPage(); y = MARGEN; }
+    doc.setFont(FUENTE, "normal");
+    doc.setFontSize(8);
+    doc.setTextColor(128, 128, 128);
+    doc.text(lineasAviso, ANCHO_PAGINA / 2, y, { align: "center" });
+    doc.setTextColor(0, 0, 0);
 
     // "Información Pública Clasificada" abajo a la derecha, en cada página.
     const totalPaginas = doc.internal.getNumberOfPages();
