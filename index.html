@@ -6,7 +6,11 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Programador de Audiencias · Unidad Penal DIAN</title>
 <link rel="stylesheet" href="assets/style.css">
-<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<!-- ExcelJS (no la librería xlsx/SheetJS de antes): la edición gratuita de
+     SheetJS no escribe estilos (fuente/bordes/relleno) en el .xlsx que
+     genera, solo los datos — para "Exportar a Excel" con formato de verdad
+     hace falta una librería que sí soporte escribir estilos. -->
+<script src="https://cdnjs.cloudflare.com/ajax/libs/exceljs/4.4.0/exceljs.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/docx@9.7.1/dist/index.iife.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js"></script>
@@ -395,38 +399,84 @@
   // Exporta exactamente lo que dejan ver los filtros activos (fecha, estado,
   // abogado, búsqueda) — no depende de qué columnas están ocultas en pantalla,
   // eso es solo una preferencia de visualización, no un filtro de datos.
-  function exportarExcel() {
+  // Bordes finos negros en todas las celdas con datos, encabezado en
+  // negrita con fondo navy y texto blanco, y fuente Arial 10 en toda la
+  // hoja (ExcelJS no tiene una fuente "por defecto de la hoja": hay que
+  // fijarla celda por celda, por eso el recorrido después de llenar filas).
+  const BORDE_FINO_EXCEL = { style: "thin", color: { argb: "FF000000" } };
+
+  async function exportarExcel() {
     if (!filasVisibles.length) {
       showToast("No hay audiencias para exportar con estos filtros.", true);
       return;
     }
-    const datos = filasVisibles.map(r => {
+
+    const columnas = [
+      { header: "Fecha", key: "fecha", width: 13 },
+      { header: "Hora inicio", key: "horaInicio", width: 12 },
+      { header: "Hora fin", key: "horaFin", width: 12 },
+      { header: "Duración", key: "duracion", width: 12 },
+      { header: "Estado", key: "estado", width: 22 },
+      { header: "Radicado", key: "radicado", width: 25 },
+      { header: "Despacho", key: "despacho", width: 34 },
+      { header: "Nombre del procesado", key: "procesado", width: 28 },
+      { header: "Persona jurídica", key: "personaJuridica", width: 28 },
+      { header: "Tipo de audiencia", key: "tipo", width: 18 },
+      { header: "Abogado titular", key: "titular", width: 24 },
+      { header: "Abogado que reemplaza", key: "reemplaza", width: 24 },
+      { header: "Modalidad", key: "modalidad", width: 12 },
+      { header: "Enlace", key: "enlace", width: 30 },
+      { header: "Observaciones", key: "observaciones", width: 40 },
+    ];
+
+    const libro = new ExcelJS.Workbook();
+    const hoja = libro.addWorksheet("Audiencias", { views: [{ state: "frozen", ySplit: 1 }] });
+    hoja.columns = columnas;
+
+    filasVisibles.forEach(r => {
       const dur = calcularDuracion(r.hora, r.hora_fin);
-      return {
-        "Fecha": formatFecha(r.fecha),
-        "Hora inicio": r.hora ? r.hora.slice(0, 5) : "",
-        "Hora fin": r.hora_fin ? r.hora_fin.slice(0, 5) : "",
-        "Duración": dur && !dur.invalido ? dur.texto : "",
-        "Estado": r.estado || "",
-        "Radicado": r.radicado_proceso || "",
-        "Despacho": r.despacho || "",
-        "Nombre del procesado": r.nombre_procesado || "",
-        "Persona jurídica": r.nombre_persona_juridica || "",
-        "Tipo de audiencia": r.tipo_audiencia || "",
-        "Abogado titular": r.abogado_titular || "",
-        "Abogado que reemplaza": r.abogado_reemplaza || "",
-        "Modalidad": r.modalidad || "",
-        "Enlace": r.link_audiencia || "",
-        "Observaciones": r.observaciones || "",
-      };
+      hoja.addRow({
+        fecha: formatFecha(r.fecha),
+        horaInicio: r.hora ? r.hora.slice(0, 5) : "",
+        horaFin: r.hora_fin ? r.hora_fin.slice(0, 5) : "",
+        duracion: dur && !dur.invalido ? dur.texto : "",
+        estado: r.estado || "",
+        radicado: r.radicado_proceso || "",
+        despacho: r.despacho || "",
+        procesado: r.nombre_procesado || "",
+        personaJuridica: r.nombre_persona_juridica || "",
+        tipo: r.tipo_audiencia || "",
+        titular: r.abogado_titular || "",
+        reemplaza: r.abogado_reemplaza || "",
+        modalidad: r.modalidad || "",
+        enlace: r.link_audiencia || "",
+        observaciones: r.observaciones || "",
+      });
     });
 
-    const hoja = XLSX.utils.json_to_sheet(datos);
-    hoja["!cols"] = Object.keys(datos[0]).map(k => ({ wch: Math.max(k.length, 14) }));
-    const libro = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(libro, hoja, "Audiencias");
-    XLSX.writeFile(libro, `audiencias_${fechaHoyISO()}.xlsx`);
-    showToast(`Exportadas ${datos.length} audiencias.`);
+    hoja.eachRow({ includeEmpty: false }, (fila, numFila) => {
+      const esEncabezado = numFila === 1;
+      fila.eachCell({ includeEmpty: true }, celda => {
+        celda.font = esEncabezado
+          ? { name: "Arial", size: 10, bold: true, color: { argb: "FFFFFFFF" } }
+          : { name: "Arial", size: 10 };
+        celda.border = { top: BORDE_FINO_EXCEL, bottom: BORDE_FINO_EXCEL, left: BORDE_FINO_EXCEL, right: BORDE_FINO_EXCEL };
+        celda.alignment = { vertical: "middle", wrapText: !esEncabezado };
+        if (esEncabezado) celda.fill = { type: "pattern", pattern: "solid", fgColor: { argb: "FF14213D" } };
+      });
+    });
+    hoja.getRow(1).height = 24;
+    hoja.autoFilter = { from: { row: 1, column: 1 }, to: { row: 1, column: columnas.length } };
+
+    const buffer = await libro.xlsx.writeBuffer();
+    const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+    const enlace = document.createElement("a");
+    enlace.href = URL.createObjectURL(blob);
+    enlace.download = `audiencias_${fechaHoyISO()}.xlsx`;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+    showToast(`Exportadas ${filasVisibles.length} audiencias.`);
   }
 
   // ===== Selector de columnas visibles (para no saturar la tabla) =====
