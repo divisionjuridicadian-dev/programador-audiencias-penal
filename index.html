@@ -1617,23 +1617,26 @@
   function celdaProcesado(r, opts) {
     opts = opts || {};
     const tamPJ = opts.pjGrande ? "13px" : "11.5px";
-    const tamID = "11px";
     const partes = [];
-    if (r.nombre_procesado) partes.push(`<div style="font-weight:700;">${escapeHtml(r.nombre_procesado)}</div>`);
     // Identificación y NIT solo en la tarjeta (opts.pjGrande, ver los dos
-    // usos de celdaProcesado()) — en la vista de tabla, ya densa por
-    // columnas, no hay espacio para sumarlos sin volverla más difícil de
-    // leer. Van en su propio copyable, anidado dentro del bloque de
-    // Procesado que ya se puede copiar completo de un clic.
-    if (opts.pjGrande && r.id_procesado) {
-      partes.push(`<div class="muted" style="font-size:${tamID};">${copyText(r.id, "id_procesado", "C.C./NIT " + escapeHtml(r.id_procesado), { detener: true, title: "Clic para copiar la identificación" })}</div>`);
-    }
+    // usos de celdaProcesado()), al lado del nombre correspondiente (no en
+    // su propia línea) — en la vista de tabla, ya densa por columnas, no
+    // hay espacio para sumarlos sin volverla más difícil de leer. Cada uno
+    // es su propio copyable, anidado dentro del bloque de Procesado que ya
+    // se puede copiar completo de un clic (de ahí "detener": sin eso, un
+    // clic en la identificación también dispararía el copy del bloque
+    // entero por la burbuja del evento).
+    const idInline = (opts.pjGrande && r.id_procesado)
+      ? ` <span class="muted" style="font-weight:400; font-size:11px;">${copyText(r.id, "id_procesado", "C.C. " + escapeHtml(r.id_procesado), { detener: true, title: "Clic para copiar la identificación" })}</span>`
+      : "";
+    if (r.nombre_procesado) partes.push(`<div style="font-weight:700;">${escapeHtml(r.nombre_procesado)}${idInline}</div>`);
+
     if (r.nombre_persona_juridica) {
       const texto = opts.pjGrande ? `(${escapeHtml(r.nombre_persona_juridica)})` : escapeHtml(r.nombre_persona_juridica);
-      partes.push(`<div class="muted" style="font-size:${tamPJ};">${texto}</div>`);
-      if (opts.pjGrande && r.nit_persona_juridica) {
-        partes.push(`<div class="muted" style="font-size:${tamID};">${copyText(r.id, "nit_persona_juridica", "NIT " + escapeHtml(r.nit_persona_juridica), { detener: true, title: "Clic para copiar el NIT" })}</div>`);
-      }
+      const nitInline = (opts.pjGrande && r.nit_persona_juridica)
+        ? ` <span style="font-size:11px;">${copyText(r.id, "nit_persona_juridica", "NIT " + escapeHtml(r.nit_persona_juridica), { detener: true, title: "Clic para copiar el NIT" })}</span>`
+        : "";
+      partes.push(`<div class="muted" style="font-size:${tamPJ};">${texto}${nitInline}</div>`);
     }
     const contenido = partes.length ? partes.join("") : "—";
     return copyText(r.id, "procesado", contenido);
