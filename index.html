@@ -1617,11 +1617,23 @@
   function celdaProcesado(r, opts) {
     opts = opts || {};
     const tamPJ = opts.pjGrande ? "13px" : "11.5px";
+    const tamID = "11px";
     const partes = [];
     if (r.nombre_procesado) partes.push(`<div style="font-weight:700;">${escapeHtml(r.nombre_procesado)}</div>`);
+    // Identificación y NIT solo en la tarjeta (opts.pjGrande, ver los dos
+    // usos de celdaProcesado()) — en la vista de tabla, ya densa por
+    // columnas, no hay espacio para sumarlos sin volverla más difícil de
+    // leer. Van en su propio copyable, anidado dentro del bloque de
+    // Procesado que ya se puede copiar completo de un clic.
+    if (opts.pjGrande && r.id_procesado) {
+      partes.push(`<div class="muted" style="font-size:${tamID};">${copyText(r.id, "id_procesado", "C.C./NIT " + escapeHtml(r.id_procesado), { detener: true, title: "Clic para copiar la identificación" })}</div>`);
+    }
     if (r.nombre_persona_juridica) {
       const texto = opts.pjGrande ? `(${escapeHtml(r.nombre_persona_juridica)})` : escapeHtml(r.nombre_persona_juridica);
       partes.push(`<div class="muted" style="font-size:${tamPJ};">${texto}</div>`);
+      if (opts.pjGrande && r.nit_persona_juridica) {
+        partes.push(`<div class="muted" style="font-size:${tamID};">${copyText(r.id, "nit_persona_juridica", "NIT " + escapeHtml(r.nit_persona_juridica), { detener: true, title: "Clic para copiar el NIT" })}</div>`);
+      }
     }
     const contenido = partes.length ? partes.join("") : "—";
     return copyText(r.id, "procesado", contenido);
@@ -1631,7 +1643,12 @@
     opts = opts || {};
     const cls = "copyable" + (opts.truncate ? " truncate" : "");
     const title = opts.title || "Clic para copiar";
-    return `<span class="${cls}" title="${escapeHtml(title)}" onclick="copiarValor('${id}','${campo}')">${texto}</span>`;
+    // detener: para un copyable anidado dentro de otro copyable (p.ej.
+    // Identificación/NIT dentro del bloque de Procesado, que en su conjunto
+    // también se puede copiar de un clic) — sin esto, el clic dispara los
+    // dos onclick (el propio y el del contenedor) porque el evento burbujea.
+    const detener = opts.detener ? "event.stopPropagation(); " : "";
+    return `<span class="${cls}" title="${escapeHtml(title)}" onclick="${detener}copiarValor('${id}','${campo}')">${texto}</span>`;
   }
 
   function valorCampo(fila, campo) {
@@ -1650,6 +1667,8 @@
       case "despacho_direccion": return fila.despacho_direccion || "";
       case "despacho_telefono": return fila.despacho_telefono || "";
       case "despacho_correo": return fila.despacho_correo || "";
+      case "id_procesado": return fila.id_procesado || "";
+      case "nit_persona_juridica": return fila.nit_persona_juridica || "";
       case "duracion": {
         const dur = calcularDuracion(fila.hora, fila.hora_fin);
         return dur && !dur.invalido ? dur.texto : "";
