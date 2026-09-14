@@ -821,6 +821,7 @@
         <td class="modalidad-cell" data-col="modalidad">${celdaModalidad(r)}</td>
         <td class="col-actions" data-col="editar">
           <span style="display:inline-flex; gap:4px;">
+            <button class="btn-icon-edit" type="button" title="Informe de audiencia (FT-PEC-2589)" onclick="window.location.href='informe-audiencia.html?audiencia=${r.id}'">${ICONOS.informe}</button>
             <button class="btn-icon-edit" type="button" title="Duplicar audiencia (reprogramación/aplazamiento)" onclick="window.location.href='audiencia.html?duplicar=${r.id}'">${ICONOS.duplicar}</button>
             <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">${ICONOS.editar}</button>
           </span>
@@ -882,6 +883,7 @@
           <div class="audiencia-card-actions">
             <button class="btn-icon-edit" type="button" title="Enviar recordatorio por correo" onclick="abrirModalRecordatorio('${r.id}')">${ICONOS.correo}</button>
             <button class="btn-icon-edit" type="button" title="Generar Poder (.docx)" onclick="abrirModalPoder('${r.id}')">${ICONOS.documento}</button>
+            <button class="btn-icon-edit" type="button" title="Informe de audiencia (FT-PEC-2589)" onclick="window.location.href='informe-audiencia.html?audiencia=${r.id}'">${ICONOS.informe}</button>
             <button class="btn-icon-edit" type="button" title="Duplicar audiencia (reprogramación/aplazamiento)" onclick="window.location.href='audiencia.html?duplicar=${r.id}'">${ICONOS.duplicar}</button>
             <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">${ICONOS.editar}</button>
           </div>
@@ -1167,44 +1169,8 @@
     }
   }
 
-  // Descarga la firma del abogado desde Supabase Storage (bucket "firmas",
-  // ver catalogos.html) y devuelve sus bytes + dimensiones ya escaladas —
-  // ancho fijo, alto según la proporción real de la imagen, con un tope
-  // para que una firma casi cuadrada no quede desproporcionadamente alta.
-  // La usan tanto el Poder en Word como en PDF. Si el abogado no tiene
-  // firma registrada, o algo falla al descargarla, devuelve null: el Poder
-  // se genera igual, solo con el nombre, como pasaba antes de esta función.
-  async function descargarFirmaEscalada(rutaFirma) {
-    if (!rutaFirma) return null;
-    try {
-      const { data: blob, error } = await db.storage.from("firmas").download(rutaFirma);
-      if (error || !blob) { console.error(error); return null; }
-      const buffer = await blob.arrayBuffer();
-      const dimensiones = await new Promise((resolve, reject) => {
-        const img = new Image();
-        img.onload = () => resolve({ ancho: img.naturalWidth, alto: img.naturalHeight });
-        img.onerror = reject;
-        img.src = URL.createObjectURL(blob);
-      });
-      const ANCHO_OBJETIVO = 170, ALTO_MAXIMO = 60;
-      let ancho = ANCHO_OBJETIVO, alto = ANCHO_OBJETIVO * (dimensiones.alto / dimensiones.ancho);
-      if (alto > ALTO_MAXIMO) { alto = ALTO_MAXIMO; ancho = ALTO_MAXIMO * (dimensiones.ancho / dimensiones.alto); }
-      const extension = (rutaFirma.split(".").pop() || "jpg").toLowerCase();
-      const tipo = ["png", "gif", "bmp"].includes(extension) ? extension : "jpg";
-      return { buffer, tipo, ancho: Math.round(ancho), alto: Math.round(alto) };
-    } catch (e) {
-      console.error("No se pudo cargar la firma del abogado:", e);
-      return null;
-    }
-  }
-
-  // Arma el ImageRun (docx.js) a partir de la firma ya descargada/escalada,
-  // lista para insertarla arriba del nombre del abogado en el Poder en Word.
-  async function cargarImagenFirma(rutaFirma) {
-    const firma = await descargarFirmaEscalada(rutaFirma);
-    if (!firma) return null;
-    return new docx.ImageRun({ data: firma.buffer, transformation: { width: firma.ancho, height: firma.alto }, type: firma.tipo });
-  }
+  // descargarFirmaEscalada() y cargarImagenFirma() ahora viven en
+  // supabase-client.js (compartidas con informe-audiencia.html).
 
   async function construirYDescargarPoder(r, directora, abogado) {
     const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType } = docx;
@@ -1430,14 +1396,8 @@
     });
   }
 
-  // Convierte un ArrayBuffer a base64 — lo usan tanto la fuente incrustada
-  // como el logo del Poder en PDF.
-  function bufferABase64(buffer) {
-    let binario = "";
-    const bytes = new Uint8Array(buffer);
-    for (let i = 0; i < bytes.length; i += 0x2000) binario += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x2000));
-    return btoa(binario);
-  }
+  // bufferABase64() ahora vive en supabase-client.js (compartida con
+  // informe-audiencia.html).
 
   // ===== "Generar Poder" en PDF: mismo contenido que el Word (texto,
   // cuadro, firma), armado aparte con jsPDF — el .docx aprovecha la
@@ -1557,9 +1517,9 @@
     const firma = await descargarFirmaEscalada(abogado.ruta_firma);
     if (firma) {
       try {
-        const formatoImagen = firma.tipo === "png" ? "PNG" : firma.tipo === "gif" ? "GIF" : "JPEG";
+        const jpegDataUrl = await imagenComoJpegDataUrl(firma.buffer, firma.tipo);
         saltoDePaginaSiHaceFalta(firma.alto + 6);
-        doc.addImage(new Uint8Array(firma.buffer), formatoImagen, MARGEN, y, firma.ancho, firma.alto);
+        doc.addImage(jpegDataUrl, "JPEG", MARGEN, y, firma.ancho, firma.alto);
         y += firma.alto + 6;
       } catch (e) {
         console.error("No se pudo insertar la firma en el PDF:", e);

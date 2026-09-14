@@ -1,0 +1,807 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<script>try{if(localStorage.getItem("dian_sidebar_colapsado")==="1")document.documentElement.setAttribute("data-sidebar","colapsado");}catch(e){}</script>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Informe de Audiencia · Programador · Unidad Penal DIAN</title>
+<link rel="stylesheet" href="assets/style.css">
+<style>
+  /* ===== Bloque de "Datos del proceso": son datos de la audiencia, no del
+     informe — se muestran de solo lectura (no <input>) para que no se
+     puedan editar acá y terminen desincronizados del dato real en
+     Audiencias. Mismo look de .field/.field-grid, solo cambia el valor por
+     un texto fijo en vez de un control editable. ===== */
+  .valor-fijo{
+    padding:9px 11px; border:1px solid var(--line); border-radius:6px; background:var(--paper-dim);
+    font-size:13.5px; color:var(--ink); min-height:20px;
+  }
+  .datos-proceso-nota{font-size:11.5px; color:var(--ink-soft); margin:0 0 14px;}
+</style>
+<!-- PWA: instalar como app (Agregar a pantalla de inicio) -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#14213d">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Audiencias">
+<link rel="apple-touch-icon" href="assets/icon-192.png">
+<script>
+  if ("serviceWorker" in navigator) {
+    window.addEventListener("load", () => {
+      navigator.serviceWorker.register("sw.js").catch((err) => console.error("No se pudo registrar el service worker:", err));
+    });
+  }
+</script>
+</head>
+<body>
+
+<div class="govco-topbar">
+  <a href="https://www.gov.co/" target="_blank" rel="noopener" aria-label="Portal del Estado Colombiano - GOV.CO">
+    <img src="assets/logo_govco.svg" alt="GOV.CO">
+  </a>
+</div>
+
+<div class="app-shell">
+  <button type="button" class="btn-toggle-sidebar" aria-label="Abrir menú"
+          onclick="document.getElementById('sidebar').classList.toggle('open'); document.getElementById('sidebarBackdrop').classList.toggle('show');">
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+  </button>
+  <div class="sidebar-backdrop" id="sidebarBackdrop"
+       onclick="document.getElementById('sidebar').classList.remove('open'); this.classList.remove('show');"></div>
+
+  <aside class="sidebar" id="sidebar">
+    <button type="button" class="btn-collapse-sidebar" title="Ocultar/mostrar menú" aria-label="Ocultar o mostrar el menú" onclick="alternarSidebarColapsado()">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+    </button>
+    <div class="sidebar-brand">
+      <img src="assets/logo_control_audiencias.png" alt="Control de Audiencias" class="brand-logo">
+      <div class="brand-escudo-wrap"><img src="assets/escudo_colombia.png" alt="DIAN"></div>
+      <h1>Programador de Audiencias</h1>
+      <div class="brand-division">División Jurídica</div>
+      <div class="subtitle">Unidad Penal · DIAN</div>
+    </div>
+
+    <nav class="sidebar-nav">
+      <a href="index.html" class="sidebar-link active">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+        Audiencias
+      </a>
+      <a href="audiencia.html" class="sidebar-link">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+        Nueva audiencia
+      </a>
+      <a href="carga-masiva.html" class="sidebar-link">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        Carga masiva
+      </a>
+      <a href="catalogos.html" class="sidebar-link">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="12 2 2 7 12 12 22 7 12 2"/><polyline points="2 17 12 22 22 17"/><polyline points="2 12 12 17 22 12"/></svg>
+        Catálogos
+      </a>
+    </nav>
+
+    <div class="sidebar-footer">
+      <a href="acerca-de.html" class="sidebar-link">
+        <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>
+        Acerca de
+      </a>
+      <div class="sidebar-user" id="userChip" style="display:none;">
+        <span id="userEmail"></span>
+        <button class="btn-logout" id="btnLogout">Salir</button>
+      </div>
+    </div>
+  </aside>
+
+  <div class="main-area">
+
+<main class="page narrow">
+  <div class="card">
+    <div class="card-head">
+      <div>
+        <h2>Informe de Diligencia Judicial</h2>
+        <p class="hint" style="margin:0;">Formato FT-PEC-2589 — los datos del proceso se toman de la audiencia; completa el resto y genera el documento.</p>
+      </div>
+    </div>
+    <div class="card-body">
+
+      <div class="form-section">
+        <h3 class="form-section-title">1. Datos del proceso</h3>
+        <p class="datos-proceso-nota">Estos datos vienen de la audiencia y no se editan acá — si algo está mal, corrígelo editando la audiencia.</p>
+        <div class="field-grid">
+          <div class="field span-2"><label>CUI ó número de proceso</label><div class="valor-fijo" id="dpRadicado"></div></div>
+          <div class="field span-2"><label>Nombre investigado</label><div class="valor-fijo" id="dpNombre"></div></div>
+          <div class="field"><label>Identificación del investigado</label><div class="valor-fijo" id="dpIdentificacion"></div></div>
+          <div class="field"><label>Fiscalía que conoce</label><div class="valor-fijo" id="dpFiscalia"></div></div>
+          <div class="field span-2"><label>Delitos investigados</label><div class="valor-fijo" id="dpDelitos"></div></div>
+          <div class="field span-2"><label>Juzgado (garantías o conocimiento)</label><div class="valor-fijo" id="dpJuzgado"></div></div>
+          <div class="field"><label>Ciudad donde se realiza la diligencia</label><div class="valor-fijo" id="dpCiudad"></div></div>
+          <div class="field"><label>Fase en la cual se encuentra el proceso</label><div class="valor-fijo" id="dpFase"></div></div>
+          <div class="field"><label>Abogado a cargo del proceso</label><div class="valor-fijo" id="dpAbogadoCargo"></div></div>
+          <div class="field"><label>Abogado que atiende la diligencia</label><div class="valor-fijo" id="dpAbogadoAtiende"></div></div>
+          <div class="field"><label>Fecha diligencia judicial que se informa</label><div class="valor-fijo" id="dpFecha"></div></div>
+          <div class="field"><label>Hora programada para la diligencia</label><div class="valor-fijo" id="dpHora"></div></div>
+        </div>
+      </div>
+
+      <form id="informeForm">
+        <div class="form-section">
+          <h3 class="form-section-title">Datos adicionales de la diligencia</h3>
+          <div class="field-grid">
+            <div class="field span-2">
+              <label for="tipoDiligencia">Tipo diligencia judicial que se informa</label>
+              <select id="tipoDiligencia"></select>
+            </div>
+            <div class="field span-2">
+              <label for="otroTipoDiligencia">Otro tipo de diligencia (si no aplica ninguna de la lista)</label>
+              <input type="text" id="otroTipoDiligencia">
+            </div>
+            <div class="field">
+              <label for="seRealizo">¿Se realizó la diligencia?</label>
+              <select id="seRealizo"><option value="">—</option><option value="SI">SI</option><option value="NO">NO</option></select>
+            </div>
+            <div class="field"></div>
+            <div class="field">
+              <label for="fechaProximaDiligencia">Fecha próxima diligencia</label>
+              <input type="date" id="fechaProximaDiligencia">
+            </div>
+            <div class="field">
+              <label for="horaProximaDiligencia">Hora próxima diligencia (24 horas)</label>
+              <input type="time" id="horaProximaDiligencia">
+            </div>
+            <div class="field span-2">
+              <label for="tipoProximaDiligencia">Tipo próxima diligencia</label>
+              <select id="tipoProximaDiligencia"></select>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section" id="seccionNoRealizo">
+          <h3 class="form-section-title">2.1 Si la diligencia NO se realizó</h3>
+          <div class="field-grid">
+            <div class="field">
+              <label for="seInstalo">¿Se instaló o no la audiencia?</label>
+              <select id="seInstalo"><option value="">—</option><option value="SI">SI</option><option value="NO">NO</option></select>
+            </div>
+            <div class="field"></div>
+            <div class="field span-2">
+              <label for="razonesNoRealizo">Razones por las cuales no se realiza la audiencia</label>
+              <textarea id="razonesNoRealizo"></textarea>
+            </div>
+            <div class="field span-2">
+              <label for="resultadoDiligencia">Resultado diligencia</label>
+              <textarea id="resultadoDiligencia"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section" id="seccionSiRealizo">
+          <h3 class="form-section-title">2.2 Si la diligencia SÍ se realizó</h3>
+          <div class="field-grid">
+            <div class="field span-2">
+              <label for="descripcionDesarrollo">Breve descripción del desarrollo de la diligencia</label>
+              <textarea id="descripcionDesarrollo"></textarea>
+            </div>
+            <div class="field">
+              <label for="huboIntervencionDian">¿Hubo intervención por parte del apoderado de la DIAN?</label>
+              <select id="huboIntervencionDian"><option value="">—</option><option value="SI">SI</option><option value="NO">NO</option></select>
+            </div>
+            <div class="field"></div>
+            <div class="field span-2">
+              <label for="posicionDian">En caso de haber intervención, posición asumida por la DIAN</label>
+              <textarea id="posicionDian"></textarea>
+            </div>
+            <div class="field">
+              <label for="horaInicioReal">Hora en que inicia la diligencia (24H)</label>
+              <input type="time" id="horaInicioReal">
+            </div>
+            <div class="field">
+              <label for="horaFinReal">Hora en que finaliza la diligencia (24H)</label>
+              <input type="time" id="horaFinReal">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3 class="form-section-title">2.3 Actuaciones pendientes o derivadas</h3>
+          <div class="field-grid">
+            <div class="field span-2">
+              <textarea id="actuacionesPendientes" placeholder="Ej: allegar información, hacer requerimientos, allegar EMP, etc."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3 class="form-section-title">3. Audiencia de imputación</h3>
+          <div class="field-grid">
+            <div class="field span-2">
+              <label for="situacionFactica">3.1 Situación fáctica (hechos materia de investigación)</label>
+              <textarea id="situacionFactica"></textarea>
+            </div>
+            <div class="field span-2">
+              <label for="situacionJuridica">3.2 Situación - imputación jurídica</label>
+              <textarea id="situacionJuridica"></textarea>
+            </div>
+            <div class="field span-2">
+              <label for="empEfIri">3.3 EMP o EF enfocados al IRI</label>
+              <textarea id="empEfIri"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3 class="form-section-title">4. Audiencia de formulación de acusación</h3>
+          <div class="field-grid">
+            <div class="field">
+              <label for="solicitoReconocimiento">¿Se solicitó el reconocimiento formal de víctima?</label>
+              <select id="solicitoReconocimiento"><option value="">—</option><option value="SI">SI</option><option value="NO">NO</option></select>
+            </div>
+            <div class="field"></div>
+            <div class="field span-2">
+              <label for="argumentosReconocimiento">Si es afirmativo, argumentos de sustentación</label>
+              <textarea id="argumentosReconocimiento"></textarea>
+            </div>
+            <div class="field span-2">
+              <label for="juzgadoReconocimiento">¿Juzgado de conocimiento que realizó reconocimiento?</label>
+              <input type="text" id="juzgadoReconocimiento">
+            </div>
+            <div class="field span-2">
+              <label for="empEfIriAcusacion">4.1 EMP o EF enfocados al IRI</label>
+              <textarea id="empEfIriAcusacion"></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3 class="form-section-title">5. Anexos</h3>
+          <div class="field-grid">
+            <div class="field span-2">
+              <textarea id="anexos" placeholder="Acta de audiencia, audio, constancias, etc."></textarea>
+            </div>
+          </div>
+        </div>
+
+        <div class="form-section">
+          <h3 class="form-section-title">Información del abogado que rinde informe</h3>
+          <div class="field-grid">
+            <div class="field span-2"><label>Nombre</label><div class="valor-fijo" id="infoAbogadoNombre"></div></div>
+            <div class="field"><label>Ubicación</label><div class="valor-fijo">División Jurídica</div></div>
+            <div class="field"><label>Dirección Seccional</label><div class="valor-fijo">Dirección Seccional de Impuestos de Medellín</div></div>
+            <div class="field">
+              <label for="fechaElaboracion">Fecha de elaboración</label>
+              <input type="date" id="fechaElaboracion">
+            </div>
+          </div>
+        </div>
+
+        <div class="form-actions" style="flex-wrap:wrap;">
+          <a href="index.html" class="btn btn-ghost">← Volver</a>
+          <button class="btn-ghost" id="btnGuardarInforme" type="button">Guardar informe</button>
+          <select id="informeFormato" style="max-width:170px;">
+            <option value="word">Word (.docx)</option>
+            <option value="pdf">PDF</option>
+          </select>
+          <button class="btn-gold" id="btnGenerarInforme" type="button">Generar documento</button>
+        </div>
+        <p class="hint" id="informeEstado" style="text-align:right;"></p>
+      </form>
+    </div>
+  </div>
+</main>
+
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2/dist/umd/supabase.js"></script>
+<script src="assets/supabase-client.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/docx@9.7.1/dist/index.iife.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/4.2.1/jspdf.umd.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/5.0.8/jspdf.plugin.autotable.min.js"></script>
+<script>
+  // Lista fija de "Tipo de diligencia" — copiada de la lista desplegable de
+  // la celda B18 de C:\DIAN\Informe_Audiencia.xlsm (hoja APOYO, columna D),
+  // que es la fuente que se venía usando para este informe antes de esta
+  // página. Se deja como arreglo acá (no como catálogo en Supabase) porque
+  // es una lista fija del formato oficial FT-PEC-2589, no algo que el
+  // equipo deba poder editar desde Catálogos.
+  const TIPOS_DILIGENCIA = [
+    "FORMULACIÓN DE IMPUTACIÓN","PRELIMINAR-LEGALIZACIÓN DE CAPTURA","PRELIMINAR-DECLARACIÓN DE PERSONA AUSENTE",
+    "PRELIMINAR-CONTUMACIA","PRELIMINAR-SOLICITUD DE IMPOSICIÓN DE MEDIDA DE ASEGURAMIENTO","PRELIMINAR-SOLICITUD DE MEDIDAS CAUTELARES",
+    "PRELIMINAR-BUSQUEDA SELECTIVA BASE DE DATOS","PRELIMINAR-CONTROL POSTERIOR BUSQUEDA SELECTIVA BASE DE DATOS",
+    "PRELIMINAR-CONTROL POSTERIOR DE RECUPERACIÓN Y ANALISIS DE INFORMACIÓN","PRELIMINAR-LEGALIZACIÓN DE PROCEDMIENTO DE ALLANAMIENTO Y REGISTRO",
+    "PRELIMINAR-SOLICITUD DE PERMISO PARA TRABAJAR","PRELIMINAR-SOLICITUD DE PRORROGA DE BUSQUEDA","PRELIMINAR-REVOCATORIA DE MEDIDA DE ASEGURAMIENTO",
+    "PRELIMINAR-SOLICITUD DE PRORROGA DE MEDIDA DE ASEGURAMIENTO","PRELIMINAR-SUSTITUCIÓN DE MEDIDA DE ASEGURAMIENTO",
+    "PRELIMINAR-SOLICITUD DE LIBERTAD POR VENCIMIENTO DE TERMINOS","PRELIMINAR-SOLICITUD DE CONEXIDAD","PRELIMINAR-SOLICITUD DE DESARCHIVO",
+    "PRELIMINAR-CONTROL DE LEGALIDAD DE PRINCIPIO DE OPORTUNIDAD","PRELIMINAR-PRORROGA DEL PRINCIPIO DE OPORTUNIDAD",
+    "PRELIMINAR-LEGALIZACIÓN DE INCAUTACIÓN CON FINES DE COMISO","PRELIMINAR-DECISION DE SEGUNDA INSTANCIA",
+    "ACUSACIÓN-SOLICITUDES DE NULIDADES, IMPEDIMENTOS Y RECUSACIONES","ACUSACIÓN-FORMULACIÓN DE ACUSACIÓN",
+    "ACUSACIÓN-ENUNCIACIÓN PROBATORIA DE LA FISCALÍA","ACUSACIÓN-DECISION DE SEGUNDA INSTANCIA  RELACIONADA CON LA ACUSACIÓN",
+    "ACUSACIÓN-PRECLUSIÓN","ACUSACIÓN-VERIFICACIÓN DEL PREACUERDO","PREPARATORIA -OBSERVACIONES AL DESCUBRIMIENTO PROBATORIO",
+    "PREPARATORIA-DESCUBRIMIENTO PROBATORIO DE LA DEFENSA","PREPARATORIA-ENUNCIACIÓN PROBATORIA","PREPARATORIA-ESTIPULACIONES PROBATORIAS",
+    "PREPARATORIA-SOLICITUDES PROBATORIAS","PREPARATORIA-DECRETO DE PRUEBAS","PREPARATORIA-PREPARATORIA",
+    "PREPARATORIA -DECISION DE SEGUNDA INSTANCIA RELACIONADA CON LA AUDIENCIA PREPARATORIA","PREPARATORIA-PRECLUSIÓN",
+    "PREPARATORIA-VERIFICACIÓN DEL PREACUERDO","JUICIO ORAL-VERFICACIÓN DEL PREACUERDO","JUICIO ORAL-PRESENTACIÓN TEORIA DEL CASO",
+    "JUICIO ORAL-PRACTICA DE PRUEBAS","JUICIO ORAL-PRESENTACIÓN DE ALEGATOS","JUICIO ORAL-PRESENTACIÓN DE ALEGATOS Y ENUNCIACIÓN SENTIDO DEL FALLO",
+    "JUICIO ORAL-SENTIDO DE FALLO","JUICIO ORAL-INDIVIDUALIZACIÓN DE PENA (ART 447)","JUICIO ORAL-INDIVIDUALIZACIÓN DE PENA (ART 447) Y SENTENCIA",
+    "JUICIO ORAL-LECTURA DE SENTENCIA","JUICIO ORAL-LECTURA DE FALLO DE SEGUNDA INSTANCIA","JUICIO ORAL-SUSTENTACIÓN DE RECURSO DE CASACIÓN",
+    "JUICIO ORAL-LECTURA DE FALLO DE CASACIÓN","JUICIO ORAL-PRECLUSIÓN",
+    "INCIDENTE DE REPARACIÓN INTEGRAL-PRIMERA AUDIENCIA DE INCIDENTE DE REPARACIÓN INTEGRAL",
+    "INCIDENTE DE REPARACIÓN INTEGRAL-PRUEBAS Y ALEGACIONES EN INCIDENTE DE REPARACIÓN INTEGRAL",
+    "INCIDENTE DE REPARACIÓN INTEGRAL-LECTURA DE FALLO DE INCIDENTE DE REPARACIÓN INTEGRAL",
+    "INCIDENTE DE REPARACIÓN INTEGRAL-SEGUNDA INSTANCIA","INCIDENTE DE REPARACIÓN INTEGRAL-CASACIÓN",
+  ];
+
+  const params = new URLSearchParams(window.location.search);
+  const audienciaId = params.get("audiencia");
+
+  // Igual que en index.html/audiencia.html — no vive en supabase-client.js,
+  // cada página que la necesita trae su propia copia.
+  function fechaHoyISO() {
+    const d = new Date();
+    const sinOffset = new Date(d.getTime() - d.getTimezoneOffset() * 60000);
+    return sinOffset.toISOString().slice(0, 10);
+  }
+
+  let audiencia = null;
+  let informeId = null; // id de informes_diligencia si ya existía uno para esta audiencia
+  let abogadosCompletos = [];
+
+  function llenarSelectTipoDiligencia(select) {
+    select.innerHTML = '<option value="">—</option>' +
+      TIPOS_DILIGENCIA.map(t => `<option value="${escapeHtml(t)}">${escapeHtml(t)}</option>`).join("");
+  }
+
+  function siNoASelect(valor) {
+    return valor === true ? "SI" : valor === false ? "NO" : "";
+  }
+  function selectASiNo(valor) {
+    return valor === "SI" ? true : valor === "NO" ? false : null;
+  }
+
+  async function init() {
+    const session = await requireSession();
+    if (!session) return;
+    wireUserChip(session);
+
+    if (!audienciaId) {
+      showToast("Falta indicar la audiencia.", true);
+      return;
+    }
+
+    llenarSelectTipoDiligencia(document.getElementById("tipoDiligencia"));
+    llenarSelectTipoDiligencia(document.getElementById("tipoProximaDiligencia"));
+    document.getElementById("fechaElaboracion").value = fechaHoyISO();
+
+    const [audienciaRes, abogadosRes] = await Promise.all([
+      db.from("audiencias_estado").select("*").eq("id", audienciaId).single(),
+      db.from("abogados").select("*").eq("activo", true),
+    ]);
+    if (audienciaRes.error || !audienciaRes.data) {
+      showToast("No se pudo cargar la audiencia.", true);
+      return;
+    }
+    audiencia = audienciaRes.data;
+    if (!abogadosRes.error) abogadosCompletos = abogadosRes.data;
+
+    mostrarDatosDeLaAudiencia();
+
+    const informeRes = await db.from("informes_diligencia").select("*").eq("audiencia_id", audienciaId).maybeSingle();
+    if (informeRes.error) console.error(informeRes.error);
+    if (informeRes.data) cargarInformeEnFormulario(informeRes.data);
+
+    actualizarVisibilidadSecciones();
+    document.getElementById("seRealizo").addEventListener("change", actualizarVisibilidadSecciones);
+
+    document.getElementById("btnGuardarInforme").addEventListener("click", () => guardarInforme(false));
+    document.getElementById("btnGenerarInforme").addEventListener("click", generarDocumento);
+  }
+
+  // "Abogado que atiende la diligencia" = abogado que reemplaza; si no hay
+  // ninguno elegido para esta audiencia, es el mismo titular (mismo criterio
+  // que ya usa "Generar Poder", ver generarPoder() en index.html).
+  function abogadoQueAtiende() {
+    return {
+      nombre: audiencia.abogado_reemplaza || audiencia.abogado_titular || "—",
+      id: audiencia.abogado_reemplaza_id || audiencia.abogado_titular_id || null,
+    };
+  }
+
+  function mostrarDatosDeLaAudiencia() {
+    const at = abogadoQueAtiende();
+    document.getElementById("dpRadicado").textContent = audiencia.radicado_proceso || "—";
+    document.getElementById("dpNombre").textContent = audiencia.nombre_procesado || "—";
+    document.getElementById("dpIdentificacion").textContent = audiencia.id_procesado || "—";
+    document.getElementById("dpFiscalia").textContent = audiencia.fiscalia || "—";
+    document.getElementById("dpDelitos").textContent = audiencia.delito_base || "—";
+    document.getElementById("dpJuzgado").textContent = audiencia.despacho || "—";
+    document.getElementById("dpCiudad").textContent = audiencia.ciudad || "—";
+    document.getElementById("dpFase").textContent = audiencia.tipo_audiencia || "—";
+    document.getElementById("dpAbogadoCargo").textContent = audiencia.abogado_titular || "—";
+    document.getElementById("dpAbogadoAtiende").textContent = at.nombre;
+    document.getElementById("dpFecha").textContent = formatFecha(audiencia.fecha);
+    document.getElementById("dpHora").textContent = audiencia.hora ? audiencia.hora.slice(0, 5) : "—";
+    document.getElementById("infoAbogadoNombre").textContent = at.nombre;
+  }
+
+  function cargarInformeEnFormulario(inf) {
+    informeId = inf.id;
+    document.getElementById("tipoDiligencia").value = inf.tipo_diligencia || "";
+    document.getElementById("otroTipoDiligencia").value = inf.otro_tipo_diligencia || "";
+    document.getElementById("seRealizo").value = siNoASelect(inf.se_realizo);
+    document.getElementById("fechaProximaDiligencia").value = inf.fecha_proxima_diligencia || "";
+    document.getElementById("horaProximaDiligencia").value = inf.hora_proxima_diligencia ? inf.hora_proxima_diligencia.slice(0, 5) : "";
+    document.getElementById("tipoProximaDiligencia").value = inf.tipo_proxima_diligencia || "";
+    document.getElementById("seInstalo").value = siNoASelect(inf.se_instalo);
+    document.getElementById("razonesNoRealizo").value = inf.razones_no_realizo || "";
+    document.getElementById("resultadoDiligencia").value = inf.resultado_diligencia || "";
+    document.getElementById("descripcionDesarrollo").value = inf.descripcion_desarrollo || "";
+    document.getElementById("huboIntervencionDian").value = siNoASelect(inf.hubo_intervencion_dian);
+    document.getElementById("posicionDian").value = inf.posicion_dian || "";
+    document.getElementById("horaInicioReal").value = inf.hora_inicio_real ? inf.hora_inicio_real.slice(0, 5) : "";
+    document.getElementById("horaFinReal").value = inf.hora_fin_real ? inf.hora_fin_real.slice(0, 5) : "";
+    document.getElementById("actuacionesPendientes").value = inf.actuaciones_pendientes || "";
+    document.getElementById("situacionFactica").value = inf.situacion_factica || "";
+    document.getElementById("situacionJuridica").value = inf.situacion_juridica || "";
+    document.getElementById("empEfIri").value = inf.emp_ef_iri || "";
+    document.getElementById("solicitoReconocimiento").value = siNoASelect(inf.solicito_reconocimiento_victima);
+    document.getElementById("argumentosReconocimiento").value = inf.argumentos_reconocimiento || "";
+    document.getElementById("juzgadoReconocimiento").value = inf.juzgado_reconocimiento || "";
+    document.getElementById("empEfIriAcusacion").value = inf.emp_ef_iri_acusacion || "";
+    document.getElementById("anexos").value = inf.anexos || "";
+    document.getElementById("fechaElaboracion").value = inf.fecha_elaboracion || fechaHoyISO();
+  }
+
+  // 2.1/2.2 se muestran u ocultan según "¿Se realizó la diligencia?", para
+  // que la persona solo vea la sección que le aplica — pero ninguna se
+  // vacía ni se saca del DOM: si cambia de opinión y vuelve a "SI"/"NO", lo
+  // que ya había escrito en la otra sección sigue ahí (y se guarda igual,
+  // por si hace falta consultarlo después).
+  function actualizarVisibilidadSecciones() {
+    const v = document.getElementById("seRealizo").value;
+    document.getElementById("seccionNoRealizo").style.display = v === "NO" ? "" : "none";
+    document.getElementById("seccionSiRealizo").style.display = v === "SI" ? "" : "none";
+  }
+
+  function recolectarInforme() {
+    return {
+      audiencia_id: audienciaId,
+      tipo_diligencia: document.getElementById("tipoDiligencia").value || null,
+      otro_tipo_diligencia: document.getElementById("otroTipoDiligencia").value || null,
+      se_realizo: selectASiNo(document.getElementById("seRealizo").value),
+      fecha_proxima_diligencia: document.getElementById("fechaProximaDiligencia").value || null,
+      hora_proxima_diligencia: document.getElementById("horaProximaDiligencia").value || null,
+      tipo_proxima_diligencia: document.getElementById("tipoProximaDiligencia").value || null,
+      se_instalo: selectASiNo(document.getElementById("seInstalo").value),
+      razones_no_realizo: document.getElementById("razonesNoRealizo").value || null,
+      resultado_diligencia: document.getElementById("resultadoDiligencia").value || null,
+      descripcion_desarrollo: document.getElementById("descripcionDesarrollo").value || null,
+      hubo_intervencion_dian: selectASiNo(document.getElementById("huboIntervencionDian").value),
+      posicion_dian: document.getElementById("posicionDian").value || null,
+      hora_inicio_real: document.getElementById("horaInicioReal").value || null,
+      hora_fin_real: document.getElementById("horaFinReal").value || null,
+      actuaciones_pendientes: document.getElementById("actuacionesPendientes").value || null,
+      situacion_factica: document.getElementById("situacionFactica").value || null,
+      situacion_juridica: document.getElementById("situacionJuridica").value || null,
+      emp_ef_iri: document.getElementById("empEfIri").value || null,
+      solicito_reconocimiento_victima: selectASiNo(document.getElementById("solicitoReconocimiento").value),
+      argumentos_reconocimiento: document.getElementById("argumentosReconocimiento").value || null,
+      juzgado_reconocimiento: document.getElementById("juzgadoReconocimiento").value || null,
+      emp_ef_iri_acusacion: document.getElementById("empEfIriAcusacion").value || null,
+      anexos: document.getElementById("anexos").value || null,
+      fecha_elaboracion: document.getElementById("fechaElaboracion").value || fechaHoyISO(),
+    };
+  }
+
+  // silencioso=true: la usa generarDocumento() para autoguardar sin mostrar
+  // el toast de "Informe guardado" (solo interesa el de éxito de generar).
+  async function guardarInforme(silencioso) {
+    const payload = recolectarInforme();
+    let error;
+    if (informeId) {
+      ({ error } = await db.from("informes_diligencia").update(payload).eq("id", informeId));
+    } else {
+      const resultado = await db.from("informes_diligencia").insert(payload).select("id").single();
+      error = resultado.error;
+      if (!error && resultado.data) informeId = resultado.data.id;
+    }
+    if (error) {
+      console.error(error);
+      showToast("No se pudo guardar el informe.", true);
+      return false;
+    }
+    if (!silencioso) showToast("Informe guardado.");
+    return true;
+  }
+
+  async function generarDocumento() {
+    const btn = document.getElementById("btnGenerarInforme");
+    btn.disabled = true;
+    btn.textContent = "Generando…";
+    document.getElementById("informeEstado").textContent = "";
+    try {
+      const guardadoOk = await guardarInforme(true);
+      if (!guardadoOk) return;
+      const informe = recolectarInforme();
+      const at = abogadoQueAtiende();
+      const abogadoInforma = abogadosCompletos.find(a => a.id === at.id) || { nombre: at.nombre, ruta_firma: null, correo: "" };
+
+      const formato = document.getElementById("informeFormato").value;
+      if (formato === "pdf") await construirYDescargarInformePDF(audiencia, informe, abogadoInforma);
+      else await construirYDescargarInformeWord(audiencia, informe, abogadoInforma);
+      showToast("Informe generado.");
+    } catch (e) {
+      console.error(e);
+      showToast("No se pudo generar el documento.", true);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = "Generar documento";
+    }
+  }
+
+  function siNoTexto(v) { return v === true ? "SI" : v === false ? "NO" : "—"; }
+  function valorOGuion(v) { return (v === null || v === undefined || v === "") ? "—" : String(v); }
+
+  function nombreArchivoInforme(extension) {
+    const digitos = (audiencia.radicado_proceso || "").replace(/\D/g, "") || "audiencia";
+    return `Informe_Audiencia_${digitos}.${extension}`;
+  }
+
+  function descargarBlob(blob, nombreArchivo) {
+    const enlace = document.createElement("a");
+    enlace.href = URL.createObjectURL(blob);
+    enlace.download = nombreArchivo;
+    document.body.appendChild(enlace);
+    enlace.click();
+    enlace.remove();
+  }
+
+  // Arma la lista de filas del cuerpo del informe (título de sección | fila
+  // etiqueta+valor) — la comparten construirYDescargarInformeWord() y
+  // construirYDescargarInformePDF() para que ambos formatos muestren
+  // exactamente el mismo contenido sin duplicar cada campo dos veces.
+  function construirFilasInforme(a, inf, abogadoInforma) {
+    const filas = [];
+    const seccion = (t) => filas.push({ tipo: "seccion", etiqueta: t });
+    const sub = (t) => filas.push({ tipo: "subseccion", etiqueta: t });
+    const fila = (e, v) => filas.push({ tipo: "fila", etiqueta: e, valor: valorOGuion(v) });
+
+    seccion("1. DATOS DEL PROCESO");
+    fila("CUI ó número de proceso", a.radicado_proceso);
+    fila("Nombre investigado", a.nombre_procesado);
+    fila("Identificación del investigado", a.id_procesado);
+    fila("Delitos investigados", a.delito_base);
+    fila("Fiscalía que conoce", a.fiscalia);
+    fila("Juzgado (garantías o conocimiento según el caso)", a.despacho);
+    fila("Ciudad donde se realiza la diligencia", a.ciudad);
+    fila("Fase en la cual se encuentra el proceso", a.tipo_audiencia);
+    fila("Nombre del abogado a cargo del proceso", a.abogado_titular);
+    fila("Nombre del abogado que atiende la diligencia", abogadoInforma.nombre);
+    fila("Fecha diligencia judicial que se informa", formatFecha(a.fecha));
+    fila("Hora programada para la diligencia", a.hora ? a.hora.slice(0, 5) : "—");
+    fila("Tipo diligencia judicial que se informa", inf.tipo_diligencia);
+    fila("Otro tipo de diligencia", inf.otro_tipo_diligencia);
+    fila("Se realizó la diligencia (SI/NO)", siNoTexto(inf.se_realizo));
+    fila("Fecha próxima diligencia", inf.fecha_proxima_diligencia ? formatFecha(inf.fecha_proxima_diligencia) : "—");
+    fila("Hora próxima diligencia", inf.hora_proxima_diligencia ? inf.hora_proxima_diligencia.slice(0, 5) : "—");
+    fila("Tipo próxima diligencia", inf.tipo_proxima_diligencia);
+
+    seccion("2. INFORME");
+    sub("2.1 Si la diligencia NO se realizó");
+    fila("Se instaló o no la audiencia (SI/NO)", siNoTexto(inf.se_instalo));
+    fila("Razones por las cuales no se realiza la audiencia", inf.razones_no_realizo);
+    fila("Resultado diligencia", inf.resultado_diligencia);
+    sub("2.2 Si la diligencia SÍ se realizó");
+    fila("Breve descripción del desarrollo de la diligencia", inf.descripcion_desarrollo);
+    fila("Hubo intervención por parte del apoderado de la DIAN (SI/NO)", siNoTexto(inf.hubo_intervencion_dian));
+    fila("En caso de haber intervención, posición asumida por la DIAN", inf.posicion_dian);
+    fila("Hora en la que inicia la diligencia", inf.hora_inicio_real ? inf.hora_inicio_real.slice(0, 5) : "—");
+    fila("Hora en la que finaliza la diligencia", inf.hora_fin_real ? inf.hora_fin_real.slice(0, 5) : "—");
+    sub("2.3 Actuaciones pendientes o derivadas");
+    fila("Actuaciones pendientes o derivadas", inf.actuaciones_pendientes);
+
+    seccion("3. AUDIENCIA DE IMPUTACIÓN");
+    fila("3.1 Situación fáctica (hechos materia de investigación)", inf.situacion_factica);
+    fila("3.2 Situación - imputación jurídica", inf.situacion_juridica);
+    fila("3.3 EMP o EF enfocados al IRI", inf.emp_ef_iri);
+
+    seccion("4. AUDIENCIA DE FORMULACIÓN DE ACUSACIÓN");
+    fila("¿Se solicitó el reconocimiento formal de víctima? (SI/NO)", siNoTexto(inf.solicito_reconocimiento_victima));
+    fila("En caso afirmativo, argumentos de sustentación", inf.argumentos_reconocimiento);
+    fila("¿Juzgado de conocimiento que realizó reconocimiento?", inf.juzgado_reconocimiento);
+    fila("4.1 EMP o EF enfocados al IRI", inf.emp_ef_iri_acusacion);
+
+    seccion("5. ANEXOS");
+    fila("Anexos", inf.anexos);
+
+    seccion("INFORMACIÓN DEL ABOGADO QUE RINDE INFORME");
+    fila("Nombre", abogadoInforma.nombre);
+    fila("Ubicación", "DIVISIÓN JURÍDICA");
+    fila("Dirección Seccional", "DIRECCIÓN SECCIONAL DE IMPUESTOS DE MEDELLÍN");
+    fila("Fecha de elaboración", formatFecha(inf.fecha_elaboracion));
+
+    return filas;
+  }
+
+  // Colores del formato: navy de la marca para los títulos numerados
+  // (1., 2., 3., 4., 5.) y un dorado suave para las subsecciones (2.1, 2.2,
+  // 2.3, 3.1…) — mismos tonos que ya usa el resto de la app (var(--navy-900)
+  // / var(--gold-soft) en assets/style.css), en vez del gris liso del Excel
+  // original, para que el documento se sienta parte de la misma aplicación.
+  const COLOR_SECCION = "14213D", COLOR_SECCION_TEXTO = "FFFFFF";
+  const COLOR_SUBSECCION = "F3E6C8", COLOR_SUBSECCION_TEXTO = "14213D";
+  const COLOR_SECCION_RGB = [20, 33, 61], COLOR_SUBSECCION_RGB = [243, 230, 200];
+
+  async function construirYDescargarInformeWord(a, inf, abogadoInforma) {
+    const { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType,
+            Header, Footer, ImageRun, ShadingType, BorderStyle, VerticalAlign } = docx;
+    const FUENTE = "Arial";
+    const SIN_BORDE = {
+      top: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      bottom: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      left: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+      right: { style: BorderStyle.NONE, size: 0, color: "FFFFFF" },
+    };
+
+    function texto(t, opts) { return new Paragraph({ children: [new TextRun(Object.assign({ text: t || "", font: FUENTE, size: 19 }, opts || {}))] }); }
+
+    const filas = construirFilasInforme(a, inf, abogadoInforma);
+    const filasTabla = filas.map(f => {
+      if (f.tipo === "seccion") {
+        return new TableRow({ children: [new TableCell({
+          columnSpan: 2, verticalAlign: VerticalAlign.CENTER,
+          shading: { fill: COLOR_SECCION, type: ShadingType.CLEAR, color: "auto" },
+          margins: { top: 60, bottom: 60, left: 100, right: 100 },
+          children: [texto(f.etiqueta, { bold: true, color: COLOR_SECCION_TEXTO, size: 20 })],
+        })] });
+      }
+      if (f.tipo === "subseccion") {
+        return new TableRow({ children: [new TableCell({
+          columnSpan: 2, verticalAlign: VerticalAlign.CENTER,
+          shading: { fill: COLOR_SUBSECCION, type: ShadingType.CLEAR, color: "auto" },
+          margins: { top: 50, bottom: 50, left: 100, right: 100 },
+          children: [texto(f.etiqueta, { bold: true, color: COLOR_SUBSECCION_TEXTO })],
+        })] });
+      }
+      return new TableRow({ children: [
+        new TableCell({ width: { size: 35, type: WidthType.PERCENTAGE }, margins: { top: 60, bottom: 60, left: 100, right: 100 }, children: [texto(f.etiqueta, { bold: true })] }),
+        new TableCell({ width: { size: 65, type: WidthType.PERCENTAGE }, margins: { top: 60, bottom: 60, left: 100, right: 100 }, children: [texto(f.valor)] }),
+      ] });
+    });
+    const tabla = new Table({ width: { size: 100, type: WidthType.PERCENTAGE }, rows: filasTabla });
+
+    const logoBuf = await fetch("assets/logo_dian.png").then(res => res.arrayBuffer());
+    const encabezado = new Table({
+      width: { size: 100, type: WidthType.PERCENTAGE },
+      rows: [new TableRow({ children: [
+        new TableCell({
+          width: { size: 30, type: WidthType.PERCENTAGE }, borders: SIN_BORDE, verticalAlign: VerticalAlign.CENTER,
+          children: [new Paragraph({ children: [new ImageRun({ data: logoBuf, transformation: { width: 110, height: 26 }, type: "png" })] })],
+        }),
+        new TableCell({
+          width: { size: 70, type: WidthType.PERCENTAGE }, borders: SIN_BORDE, verticalAlign: VerticalAlign.CENTER,
+          children: [
+            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "INFORME DE DILIGENCIA JUDICIAL", bold: true, font: FUENTE, size: 26 })] }),
+            new Paragraph({ alignment: AlignmentType.CENTER, children: [new TextRun({ text: "FT-PEC-2589", bold: true, font: FUENTE, size: 24 })] }),
+          ],
+        }),
+      ] })],
+    });
+
+    const imagenFirma = await cargarImagenFirma(abogadoInforma.ruta_firma);
+
+    const doc = new Document({
+      styles: { default: { document: { run: { font: FUENTE, size: 19 } } } },
+      sections: [{
+        footers: { default: new Footer({ children: [
+          new Paragraph({ alignment: AlignmentType.RIGHT, children: [new TextRun({ text: "Información Pública Clasificada", font: FUENTE, size: 15, italics: true })] }),
+        ] }) },
+        children: [
+          encabezado,
+          texto(""),
+          texto("Proceso: Planeación, Estrategia y Control — Versión 2", { italics: true, size: 17 }),
+          texto(""),
+          tabla,
+          texto(""),
+          ...(imagenFirma
+            ? [new Paragraph({ children: [imagenFirma] })]
+            : [texto("Firma: _______________________")]),
+        ],
+      }],
+    });
+
+    const blob = await Packer.toBlob(doc);
+    descargarBlob(blob, nombreArchivoInforme("docx"));
+  }
+
+  async function construirYDescargarInformePDF(a, inf, abogadoInforma) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF({ unit: "pt", format: "letter" });
+
+    const [regularBuf, boldBuf] = await Promise.all([
+      fetch("assets/Roboto-Regular.ttf").then(res => res.arrayBuffer()),
+      fetch("assets/Roboto-Bold.ttf").then(res => res.arrayBuffer()),
+    ]);
+    doc.addFileToVFS("Roboto-Regular.ttf", bufferABase64(regularBuf));
+    doc.addFont("Roboto-Regular.ttf", "Roboto", "normal");
+    doc.addFileToVFS("Roboto-Bold.ttf", bufferABase64(boldBuf));
+    doc.addFont("Roboto-Bold.ttf", "Roboto", "bold");
+
+    const FUENTE = "Roboto";
+    const MARGEN = 40;
+    const ANCHO_PAGINA = doc.internal.pageSize.getWidth();
+    const ALTO_PAGINA = doc.internal.pageSize.getHeight();
+    const ANCHO_UTIL = ANCHO_PAGINA - MARGEN * 2;
+    let y = MARGEN;
+
+    try {
+      const logoBuf = await fetch("assets/logo_dian.png").then(res => res.arrayBuffer());
+      doc.addImage(new Uint8Array(logoBuf), "PNG", MARGEN, y, 88, 21);
+    } catch (e) {
+      console.error("No se pudo cargar el logo para el PDF:", e);
+    }
+    doc.setFont(FUENTE, "bold");
+    doc.setFontSize(13);
+    doc.text("INFORME DE DILIGENCIA JUDICIAL", ANCHO_PAGINA / 2, y + 12, { align: "center" });
+    doc.setFontSize(10);
+    doc.text("FT-PEC-2589", ANCHO_PAGINA - MARGEN, y + 12, { align: "right" });
+    y += 40;
+    doc.setFont(FUENTE, "italic");
+    doc.setFontSize(9);
+    doc.text("Proceso: Planeación, Estrategia y Control — Versión 2", MARGEN, y);
+    y += 16;
+
+    const filas = construirFilasInforme(a, inf, abogadoInforma);
+    const body = filas.map(f => {
+      if (f.tipo === "seccion") return [{ content: f.etiqueta, colSpan: 2, styles: { fillColor: COLOR_SECCION_RGB, textColor: 255, fontStyle: "bold", fontSize: 10 } }];
+      if (f.tipo === "subseccion") return [{ content: f.etiqueta, colSpan: 2, styles: { fillColor: COLOR_SUBSECCION_RGB, textColor: COLOR_SECCION_RGB, fontStyle: "bold", fontSize: 9.5 } }];
+      return [
+        { content: f.etiqueta, styles: { fontStyle: "bold", fillColor: [245, 245, 245] } },
+        { content: f.valor },
+      ];
+    });
+
+    doc.autoTable({
+      startY: y,
+      margin: { left: MARGEN, right: MARGEN, bottom: 40 },
+      body,
+      theme: "grid",
+      styles: { font: FUENTE, fontSize: 9, cellPadding: 5, lineColor: [0, 0, 0], lineWidth: 0.4, valign: "top" },
+      columnStyles: { 0: { cellWidth: ANCHO_UTIL * 0.35 }, 1: { cellWidth: ANCHO_UTIL * 0.65 } },
+    });
+    y = doc.lastAutoTable.finalY + 16;
+
+    const firma = await descargarFirmaEscalada(abogadoInforma.ruta_firma);
+    if (y + (firma ? firma.alto : 20) + 10 > ALTO_PAGINA - 50) { doc.addPage(); y = MARGEN; }
+    let firmaInsertada = false;
+    if (firma) {
+      try {
+        const jpegDataUrl = await imagenComoJpegDataUrl(firma.buffer, firma.tipo);
+        doc.addImage(jpegDataUrl, "JPEG", MARGEN, y, firma.ancho, firma.alto);
+        y += firma.alto + 6;
+        firmaInsertada = true;
+      } catch (e) {
+        console.error("No se pudo insertar la firma en el PDF, se deja la línea en blanco:", e);
+      }
+    }
+    if (!firmaInsertada) {
+      doc.setFont(FUENTE, "normal");
+      doc.setFontSize(9);
+      doc.text("Firma: _______________________", MARGEN, y + 10);
+    }
+
+    // "Información Pública Clasificada" abajo a la derecha, en cada página.
+    const totalPaginas = doc.internal.getNumberOfPages();
+    for (let pagina = 1; pagina <= totalPaginas; pagina++) {
+      doc.setPage(pagina);
+      doc.setFont(FUENTE, "normal");
+      doc.setFontSize(8);
+      doc.text("Información Pública Clasificada", ANCHO_PAGINA - MARGEN, ALTO_PAGINA - 24, { align: "right" });
+    }
+
+    const blob = doc.output("blob");
+    descargarBlob(blob, nombreArchivoInforme("pdf"));
+  }
+
+  init();
+</script>
+</body>
+</html>

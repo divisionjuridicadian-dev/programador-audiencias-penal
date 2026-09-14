@@ -168,6 +168,109 @@ function llenarSelect(select, items, valorActual) {
   if (valorActual) select.value = valorActual;
 }
 
+// ===== Firma del abogado (catalogos.html) — la usan tanto "Generar Poder"
+// (index.html) como "Informe de audiencia" (informe-audiencia.html), de ahí
+// que viva acá en vez de duplicada en cada página. =====
+// Descarga la firma del abogado desde Supabase Storage (bucket "firmas") y
+// devuelve sus bytes + dimensiones ya escaladas — ancho fijo, alto según la
+// proporción real de la imagen, con un tope para que una firma casi
+// cuadrada no quede desproporcionadamente alta. Si el abogado no tiene firma
+// registrada, o algo falla al descargarla, devuelve null: el documento se
+// genera igual, solo con el nombre (y línea de firma en blanco).
+async function descargarFirmaEscalada(rutaFirma) {
+  if (!rutaFirma) return null;
+  try {
+    const { data: blob, error } = await db.storage.from("firmas").download(rutaFirma);
+    if (error || !blob) { console.error(error); return null; }
+    const buffer = await blob.arrayBuffer();
+    const dimensiones = await new Promise((resolve, reject) => {
+      const img = new Image();
+      img.onload = () => resolve({ ancho: img.naturalWidth, alto: img.naturalHeight });
+      img.onerror = reject;
+      img.src = URL.createObjectURL(blob);
+    });
+    const ANCHO_OBJETIVO = 170, ALTO_MAXIMO = 60;
+    let ancho = ANCHO_OBJETIVO, alto = ANCHO_OBJETIVO * (dimensiones.alto / dimensiones.ancho);
+    if (alto > ALTO_MAXIMO) { alto = ALTO_MAXIMO; ancho = ALTO_MAXIMO * (dimensiones.ancho / dimensiones.alto); }
+    const extension = (rutaFirma.split(".").pop() || "jpg").toLowerCase();
+    const tipo = ["png", "gif", "bmp"].includes(extension) ? extension : "jpg";
+    return { buffer, tipo, ancho: Math.round(ancho), alto: Math.round(alto) };
+  } catch (e) {
+    console.error("No se pudo cargar la firma del abogado:", e);
+    return null;
+  }
+}
+
+// Arma el ImageRun (docx.js) a partir de la firma ya descargada/escalada,
+// lista para insertar arriba del nombre del abogado. Requiere que la página
+// haya cargado docx.js (Poder e Informe lo hacen; catalogos.html, por
+// ejemplo, no la llama, así que no importa que no lo tenga).
+async function cargarImagenFirma(rutaFirma) {
+  const firma = await descargarFirmaEscalada(rutaFirma);
+  if (!firma) return null;
+  return new docx.ImageRun({ data: firma.buffer, transformation: { width: firma.ancho, height: firma.alto }, type: firma.tipo });
+}
+
+// jsPDF trae su propio decodificador de PNG (no usa el del navegador), y es
+// conocido por fallar con algunos PNG perfectamente válidos según cómo haya
+// comprimido el archivo el programa que lo generó (distinto de los .png
+// fijos de la propia app, como el logo, que ya se sabe que sí funcionan).
+// Como una firma la puede haber generado cualquier app o escáner, antes de
+// pasarla a doc.addImage() en un PDF (Poder o Informe) se redibuja en un
+// <canvas> y se reexporta como JPEG (vía toDataURL, síncrono — se evita
+// toBlob a propósito por su callback asíncrono, nada garantiza cuándo
+// dispara) — el JPEG sí lo decodifica bien siempre, aplanando cualquier
+// transparencia sobre fondo blanco (no debería tener ninguna una firma
+// real, pero por si acaso). No se usa para el .docx: ahí es Word quien
+// decodifica la imagen, no docx.js, así que no aplica el bug. Devuelve un
+// data URL (no un ArrayBuffer): doc.addImage() de jsPDF acepta ambos, y así
+// no hace falta un paso extra para convertir de vuelta.
+async function imagenComoJpegDataUrl(buffer, tipoOriginal) {
+  const mime = tipoOriginal === "jpg" ? "jpeg" : tipoOriginal;
+  const blob = new Blob([buffer], { type: `image/${mime}` });
+  const url = URL.createObjectURL(blob);
+  try {
+    // <img>+onload (no createImageBitmap): es el mismo decodificador que ya
+    // usa descargarFirmaEscalada() para medir la imagen, así que si esos
+    // bytes ya se pudieron medir ahí, se pueden volver a decodificar acá.
+    const img = await new Promise((resolve, reject) => {
+      const el = new Image();
+      el.onload = () => resolve(el);
+      el.onerror = reject;
+      el.src = url;
+    });
+    // onload solo garantiza que se conocen las dimensiones; decode() sí
+    // garantiza que los píxeles ya están listos para dibujar — sin esto,
+    // drawImage() puede terminar copiando un canvas en blanco. Pero decode()
+    // puede quedarse colgado para siempre con algunas imágenes en ciertos
+    // navegadores/entornos, así que se le pone un tope de tiempo corto: si
+    // no resuelve rápido, se sigue igual (para entonces onload ya disparó,
+    // así que lo normal es que los píxeles ya estén listos de todas formas).
+    if (img.decode) {
+      await Promise.race([img.decode(), new Promise(resolve => setTimeout(resolve, 400))]).catch(() => {});
+    }
+    const canvas = document.createElement("canvas");
+    canvas.width = img.naturalWidth;
+    canvas.height = img.naturalHeight;
+    const ctx = canvas.getContext("2d");
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    ctx.drawImage(img, 0, 0);
+    return canvas.toDataURL("image/jpeg", 0.92);
+  } finally {
+    URL.revokeObjectURL(url);
+  }
+}
+
+// Convierte un ArrayBuffer a base64 — lo usan tanto una fuente TTF
+// incrustada en un PDF (jsPDF) como una imagen (logo, firma) en base64.
+function bufferABase64(buffer) {
+  let binario = "";
+  const bytes = new Uint8Array(buffer);
+  for (let i = 0; i < bytes.length; i += 0x2000) binario += String.fromCharCode.apply(null, bytes.subarray(i, i + 0x2000));
+  return btoa(binario);
+}
+
 // ===== Íconos SVG (reemplazan emojis en botones de acción) =====
 // Trazos tipo Feather/Lucide dibujados a mano para no depender de una
 // librería externa por un puñado de íconos — mismo criterio ya usado en
@@ -185,6 +288,7 @@ const ICONOS = {
   correo: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="4" width="20" height="16" rx="2"/><path d="m22 7-8.97 5.7a1.94 1.94 0 0 1-2.06 0L2 7"/></svg>',
   chevron: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>',
   duplicar: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"/><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"/></svg>',
+  informe: '<svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="8" y="2" width="8" height="4" rx="1" ry="1"/><path d="M16 4h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2h2"/><path d="M9 14l2 2 4-4"/></svg>',
 };
 
 // ===== Modal de confirmación (reemplaza confirm() nativo) =====
