@@ -137,7 +137,10 @@
         </div>
         <div class="field">
           <label for="fResultado">Resultado</label>
-          <select id="fResultado"><option value="">Todos</option></select>
+          <select id="fResultado">
+            <option value="">Todos</option>
+            <option value="__sin_resultado__">(Sin resultado)</option>
+          </select>
         </div>
         <div class="field">
           <label>Abogado titular</label>
@@ -287,6 +290,11 @@
   let todasLasFilas = [];
   let filasVisibles = []; // último subconjunto filtrado, para exportarExcel()
   let resultadosCatalogo = []; // {id, nombre} activos, para el selector de Resultado en la tarjeta
+  // Valor especial del filtro de Resultado para "audiencias sin resultado
+  // guardado" (resultado_audiencia_id null) — no puede ser "" porque ese
+  // valor ya significa "Todos", y no puede coincidir con ningún id real del
+  // catálogo (son UUID) por su forma.
+  const SIN_RESULTADO = "__sin_resultado__";
   let abogadosCompletos = []; // registros completos (cédula, T.P., género, correo) para "Generar Poder"
   let directorasCatalogo = []; // directoras_asignadas activas (poderdante), para "Generar Poder"
   let poderAudienciaId = null;
@@ -310,8 +318,7 @@
     document.getElementById("btnRefresh").addEventListener("click", cargarDatos);
     document.getElementById("btnExportar").addEventListener("click", exportarExcel);
     document.getElementById("btnLimpiar").addEventListener("click", limpiarFiltros);
-    ["fResultado","fAbogado"].forEach(id =>
-      document.getElementById(id).addEventListener("input", renderTabla));
+    document.getElementById("fAbogado").addEventListener("input", renderTabla);
     // Buscar por texto es independiente de la fecha: mientras haya algo
     // escrito, el período queda en "Todos" (sin límite de fecha) para no
     // esconder resultados que coincidan pero caigan fuera del rango de
@@ -319,6 +326,17 @@
     // mientras el filtro por defecto solo muestra de hoy en adelante.
     document.getElementById("fBuscar").addEventListener("input", () => {
       if (document.getElementById("fBuscar").value.trim()) {
+        aplicarPeriodo("todos");
+      } else {
+        renderTabla();
+      }
+    });
+    // Igual que Buscar: filtrar por Resultado es independiente de la fecha
+    // (una audiencia con resultado guardado casi siempre ya pasó, y quedaría
+    // oculta por el filtro de fecha "de hoy en adelante" si no se fuerza
+    // Período a "Todos").
+    document.getElementById("fResultado").addEventListener("input", () => {
+      if (document.getElementById("fResultado").value) {
         aplicarPeriodo("todos");
       } else {
         renderTabla();
@@ -750,7 +768,9 @@
       if (desde && r.fecha < desde) return false;
       if (hasta && r.fecha > hasta) return false;
       if (abogado && r.abogado_titular !== abogado) return false;
-      if (resultado && r.resultado_audiencia_id !== resultado) return false;
+      if (resultado === SIN_RESULTADO) {
+        if (r.resultado_audiencia_id) return false;
+      } else if (resultado && r.resultado_audiencia_id !== resultado) return false;
       if (q) {
         const blob = normalize([r.radicado_proceso, r.nombre_procesado, r.nombre_persona_juridica, r.despacho].join(" "));
         if (blob.indexOf(q) === -1) return false;
