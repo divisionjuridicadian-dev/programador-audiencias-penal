@@ -355,6 +355,12 @@
 <script>
   const params = new URLSearchParams(window.location.search);
   const audienciaId = params.get("id");
+  // "Duplicar audiencia" (ver botón en index.html): crea una audiencia NUEVA
+  // con los mismos datos que la de duplicarDeId, salvo fecha/hora/hora fin/
+  // resultado (quedan vacíos — es una audiencia que todavía no ha pasado) y
+  // sus novedades (se copian aparte, ver finalizarDuplicado()). Se ignora si
+  // además viene "id" en la URL (editar tiene prioridad).
+  const duplicarDeId = audienciaId ? null : params.get("duplicar");
 
   // cargandoDatosExistentes evita que la consulta automática a la Rama
   // Judicial se dispare al precargar el radicado de una audiencia ya
@@ -367,6 +373,17 @@
   let constructorJuzgadoElegido = null;
   let consolidadoRegistros = null; // null = archivo aún no cargado esta sesión
   let consolidadoActividadesPendiente = null; // "ACTIVIDADES ADELANTADAS" por guardar como novedad
+  // Datos de la audiencia original que se está duplicando, para poder avisar
+  // en el formulario y decidir si hay que marcarla como reprogramada/aplazada
+  // al guardar (ver finalizarDuplicado()) — null hasta que cargarAudiencia()
+  // los llene, y sin uso si no se está duplicando.
+  let duplicarOrigenResultadoId = null;
+  let duplicarOrigenRadicado = null;
+  let duplicarOrigenFecha = null;
+  // Id del resultado "Reprogramación o Aplazamiento" del catálogo, resuelto
+  // por nombre en init() (no se hardcodea el UUID: el catálogo es editable
+  // desde catalogos.html).
+  let idResultadoReprogramacion = null;
 
   // Igual que en index.html — se necesita acá también para fechar la
   // novedad importada del Consolidado con la fecha local de hoy.
@@ -390,6 +407,7 @@
     llenarSelect(document.getElementById("resultado"), resultados);
     llenarSelect(document.getElementById("abogadoTitular"), abogados);
     llenarSelect(document.getElementById("abogadoReemplaza"), abogados);
+    idResultadoReprogramacion = (resultados.find(r => r.nombre === "Reprogramación o Aplazamiento") || {}).id || null;
 
     wireRadicadoInput(document.getElementById("radicado"), document.getElementById("radicadoHint"));
     document.getElementById("radicado").addEventListener("input", () => {
@@ -424,6 +442,19 @@
       document.getElementById("btnEliminar").innerHTML = ICONOS.papelera + " Eliminar";
       document.getElementById("btnEliminar").style.display = "inline-flex";
       await cargarAudiencia();
+    } else if (duplicarDeId) {
+      document.getElementById("formTitle").textContent = "Duplicar audiencia";
+      // Fecha y hora inicio quedan en blanco a propósito (ver cargarAudiencia)
+      // y son obligatorias para guardar: esta es la audiencia reprogramada/
+      // aplazada, todavía no tiene fecha ni hora reales.
+      document.getElementById("hora").required = true;
+      await cargarAudiencia();
+      if (duplicarOrigenRadicado) {
+        document.getElementById("formSub").innerHTML =
+          `Se copiaron los datos de la audiencia con radicado <strong>${escapeHtml(duplicarOrigenRadicado)}</strong> ` +
+          `del <strong>${escapeHtml(formatFecha(duplicarOrigenFecha))}</strong>. Indica la nueva fecha y hora — ` +
+          `al guardar, quedará vinculada a la original como reprogramación/aplazamiento, y se copiarán también sus novedades.`;
+      }
     }
 
     document.getElementById("audienciaForm").addEventListener("submit", guardar);
@@ -431,7 +462,10 @@
   }
 
   async function cargarAudiencia() {
-    const { data, error } = await db.from("audiencias").select("*").eq("id", audienciaId).single();
+    // Editar trae la audiencia por "id"; Duplicar trae la ORIGINAL por
+    // "duplicar" (esta sigue siendo, en todo lo demás, una audiencia nueva).
+    const idAConsultar = audienciaId || duplicarDeId;
+    const { data, error } = await db.from("audiencias").select("*").eq("id", idAConsultar).single();
     if (error || !data) {
       showToast("No se pudo cargar la audiencia.", true);
       return;
@@ -440,9 +474,21 @@
     document.getElementById("radicado").value = data.radicado_proceso || "";
     document.getElementById("radicado").dispatchEvent(new Event("input"));
     cargandoDatosExistentes = false;
-    document.getElementById("fecha").value = data.fecha || "";
-    document.getElementById("hora").value = data.hora ? data.hora.slice(0,5) : "";
-    document.getElementById("horaFin").value = data.hora_fin ? data.hora_fin.slice(0,5) : "";
+    if (duplicarDeId) {
+      // Fecha, hora y hora fin quedan vacías a propósito: es una audiencia
+      // que todavía no ha pasado. El resultado tampoco se copia — es el
+      // desenlace de una sesión puntual (y de paso, si se copiara, el badge
+      // de estado mostraría el resultado de la audiencia vieja en vez de la
+      // urgencia real de esta, que todavía no tiene fecha definida).
+      duplicarOrigenResultadoId = data.resultado_audiencia_id || null;
+      duplicarOrigenRadicado = data.radicado_proceso || "";
+      duplicarOrigenFecha = data.fecha || "";
+    } else {
+      document.getElementById("fecha").value = data.fecha || "";
+      document.getElementById("hora").value = data.hora ? data.hora.slice(0,5) : "";
+      document.getElementById("horaFin").value = data.hora_fin ? data.hora_fin.slice(0,5) : "";
+      document.getElementById("resultado").value = data.resultado_audiencia_id || "";
+    }
     document.getElementById("modalidad").value = data.modalidad || "Virtual";
     document.getElementById("despacho").value = data.despacho || "";
     document.getElementById("fiscalia").value = data.fiscalia || "";
@@ -452,7 +498,6 @@
     document.getElementById("delitoBase").value = data.delito_base || "";
     document.getElementById("estadoProceso").value = data.estado_proceso || "";
     document.getElementById("tipoAudiencia").value = data.tipo_audiencia_id || "";
-    document.getElementById("resultado").value = data.resultado_audiencia_id || "";
     document.getElementById("abogadoTitular").value = data.abogado_titular_id || "";
     document.getElementById("abogadoReemplaza").value = data.abogado_reemplaza_id || "";
     document.getElementById("nombreProcesado").value = data.nombre_procesado || "";
@@ -510,6 +555,7 @@
     btn.textContent = "Guardando…";
 
     const payload = recolectar();
+    if (duplicarDeId) payload.audiencia_anterior_id = duplicarDeId;
     let error, idGuardado = audienciaId;
     if (audienciaId) {
       ({ error } = await db.from("audiencias").update(payload).eq("id", audienciaId));
@@ -547,7 +593,36 @@
       });
       if (errorNovedad) console.error(errorNovedad);
     }
+    if (duplicarDeId && idGuardado) await finalizarDuplicado(idGuardado);
     window.location.href = "index.html";
+  }
+
+  // Cierra el resto de la trazabilidad de "Duplicar audiencia" una vez que la
+  // nueva audiencia ya se guardó (el vínculo audiencia_anterior_id ya quedó
+  // en el payload del insert, ver guardar()): copia las novedades de la
+  // audiencia original a la nueva, y marca la original como "Reprogramación
+  // o Aplazamiento" — pero solo si todavía no tenía ningún resultado
+  // guardado, para no pisar un dato que la persona ya haya puesto a mano.
+  // Ningún fallo acá bloquea el guardado ya hecho: solo se avisa por consola,
+  // igual que ya hace consolidadoActividadesPendiente arriba.
+  async function finalizarDuplicado(idNuevaAudiencia) {
+    const { data: novedadesOrigen, error: errNovedades } = await db.from("novedades")
+      .select("novedad, fecha, observacion").eq("audiencia_id", duplicarDeId);
+    if (errNovedades) {
+      console.error(errNovedades);
+    } else if (novedadesOrigen && novedadesOrigen.length) {
+      const copias = novedadesOrigen.map(n => ({
+        audiencia_id: idNuevaAudiencia, novedad: n.novedad, fecha: n.fecha, observacion: n.observacion,
+      }));
+      const { error: errCopia } = await db.from("novedades").insert(copias);
+      if (errCopia) console.error(errCopia);
+    }
+
+    if (!duplicarOrigenResultadoId && idResultadoReprogramacion) {
+      const { error: errOrigen } = await db.from("audiencias")
+        .update({ resultado_audiencia_id: idResultadoReprogramacion }).eq("id", duplicarDeId);
+      if (errOrigen) console.error(errOrigen);
+    }
   }
 
   async function eliminar() {

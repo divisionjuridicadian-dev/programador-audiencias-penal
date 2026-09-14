@@ -820,7 +820,10 @@
         <td data-col="observaciones">${copyText(r.id,"observaciones", escapeHtml(r.observaciones || "—"), { truncate: true, title: r.observaciones || "Sin observaciones" })}</td>
         <td class="modalidad-cell" data-col="modalidad">${celdaModalidad(r)}</td>
         <td class="col-actions" data-col="editar">
-          <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">${ICONOS.editar}</button>
+          <span style="display:inline-flex; gap:4px;">
+            <button class="btn-icon-edit" type="button" title="Duplicar audiencia (reprogramación/aplazamiento)" onclick="window.location.href='audiencia.html?duplicar=${r.id}'">${ICONOS.duplicar}</button>
+            <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">${ICONOS.editar}</button>
+          </span>
         </td>
       </tr>
     `).join("");
@@ -850,6 +853,7 @@
               ${r.tipo_audiencia ? `<span class="audiencia-tag-tipo">${escapeHtml(r.tipo_audiencia)}</span>` : ""}
               <span class="badge copyable ${badgeClassForEstado(r.estado)}" title="Clic para copiar" onclick="copiarValor('${r.id}','estado')">${escapeHtml(r.estado)}</span>
             </div>
+            ${celdaVinculoAudiencia(r)}
             <div class="audiencia-card-despacho" title="${escapeHtml(r.despacho || "Sin despacho")}">${copyText(r.id, "despacho", escapeHtml(r.despacho || "—"))}</div>
             ${correoJuzgado(r)}
             ${r.fiscalia ? `<div class="audiencia-card-fiscalia" title="${escapeHtml(r.fiscalia)}">${copyText(r.id, "fiscalia", escapeHtml(r.fiscalia))}</div>` : ""}
@@ -878,6 +882,7 @@
           <div class="audiencia-card-actions">
             <button class="btn-icon-edit" type="button" title="Enviar recordatorio por correo" onclick="abrirModalRecordatorio('${r.id}')">${ICONOS.correo}</button>
             <button class="btn-icon-edit" type="button" title="Generar Poder (.docx)" onclick="abrirModalPoder('${r.id}')">${ICONOS.documento}</button>
+            <button class="btn-icon-edit" type="button" title="Duplicar audiencia (reprogramación/aplazamiento)" onclick="window.location.href='audiencia.html?duplicar=${r.id}'">${ICONOS.duplicar}</button>
             <button class="btn-icon-edit" type="button" title="Editar audiencia" onclick="window.location.href='audiencia.html?id=${r.id}'">${ICONOS.editar}</button>
           </div>
         </div>
@@ -924,6 +929,32 @@
     const anio = radicado.slice(12, 16);
     const consecutivo = radicado.slice(16, 21);
     return `<span class="audiencia-card-radicado-abrev">(${juzgado}-<strong>${anio}</strong>-<strong>${consecutivo}</strong>)</span>`;
+  }
+
+  // Trazabilidad de "Duplicar audiencia" (ver audiencia.html: crea una nueva
+  // audiencia vinculada a la original vía audiencia_anterior_id, para
+  // reprogramaciones/aplazamientos sin perder el histórico de ninguna de las
+  // dos). Como todasLasFilas ya trae TODAS las audiencias cargadas en
+  // memoria, alcanza con buscar ahí en vez de pedirle un JOIN nuevo a la
+  // vista — evita el riesgo de fan-out de un LEFT JOIN uno-a-muchos si algún
+  // día una audiencia se duplica más de una vez.
+  function celdaVinculoAudiencia(r) {
+    const partes = [];
+    if (r.audiencia_anterior_id) {
+      const anterior = todasLasFilas.find(x => x.id === r.audiencia_anterior_id);
+      partes.push(`<div class="audiencia-card-vinculo" title="Esta audiencia se creó duplicando la audiencia original, para reprogramarla o aplazarla">
+        ↩ Reprogramada/aplazada de la audiencia del <strong>${anterior ? formatFecha(anterior.fecha) : "—"}</strong>
+        ${anterior ? `<a href="audiencia.html?id=${anterior.id}">(ver)</a>` : ""}
+      </div>`);
+    }
+    const siguiente = todasLasFilas.find(x => x.audiencia_anterior_id === r.id);
+    if (siguiente) {
+      partes.push(`<div class="audiencia-card-vinculo" title="Esta audiencia fue reprogramada/aplazada: se creó una audiencia nueva a partir de ella">
+        ↪ Reprogramada/aplazada a la audiencia del <strong>${formatFecha(siguiente.fecha)}</strong>
+        <a href="audiencia.html?id=${siguiente.id}">(ver)</a>
+      </div>`);
+    }
+    return partes.join("");
   }
 
   // Correo del juzgado (despachos_directorio, cruzado en audiencias_estado
